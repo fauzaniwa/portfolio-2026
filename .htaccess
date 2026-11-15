@@ -1,0 +1,4 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^karya/([a-z0-9-]+)/?$ project.php?slug=$1 [L,QSA]
+</IfModule>
