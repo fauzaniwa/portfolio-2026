@@ -1,8 +1,8 @@
 <?php require 'config.php';session_start();
-$adm=!empty($_SESSION['adm']);$d=db();
+$adm=!empty($_SESSION['adm']);$d=db();maint();
 $q=$d->prepare("SELECT * FROM projects WHERE ".(isset($_GET['slug'])?'slug=?':'id=?')." AND (status='published' OR ?=1)");
 $q->execute([$_GET['slug']??(int)($_GET['id']??0),(int)$adm]);$p=$q->fetch();
-if(!$p){http_response_code(404);exit('Karya tidak ditemukan. <a href="./">Kembali</a>');}
+if(!$p)fail(404,'Karya yang Anda cari tidak ada atau belum dipublikasikan. Coba lihat karya lainnya.');
 $B=rtrim(dirname($_SERVER['SCRIPT_NAME']),'/\\').'/';
 if(!$adm){track('pageview','karya/'.($p['slug']?:$p['id']));pview($p['id'],$p['title']);}
 $p=$d->query("SELECT * FROM projects WHERE id=".(int)$p['id'])->fetch();
@@ -13,7 +13,7 @@ $lq=$d->prepare("SELECT COUNT(*) FROM likes WHERE pid=? AND vid=?");$lq->execute
 $all=$d->query("SELECT id,title,slug FROM projects WHERE status='published' ORDER BY sort_order,id DESC")->fetchAll();
 $ix=array_search($p['id'],array_column($all,'id'));$pr=($ix!==false&&$ix>0)?$all[$ix-1]:null;$nx=($ix!==false&&isset($all[$ix+1]))?$all[$ix+1]:null;
 $url=base().purl($p);$ds=$p['summary']?:$p['description'];
-$img=$media?base().'uploads/'.rawurlencode($media[0]):($s['photo']?base().'uploads/'.rawurlencode($s['photo']):'');
+$imgs=array_values(array_filter($media,fn($f)=>!isvid($f)));$img=$imgs?base().'uploads/'.rawurlencode($imgs[0]):(($s['photo']&&!isvid($s['photo']))?base().'uploads/'.rawurlencode($s['photo']):'');
 preg_match('/(?:youtu\.be\/|v=|embed\/)([\w-]{11})/',$p['video']??'',$m);$yt=$m?'https://www.youtube-nocookie.com/embed/'.$m[1]:'';
 $ld=['@context'=>'https://schema.org','@type'=>'CreativeWork','name'=>$p['title'],'description'=>$ds,'url'=>$url,'image'=>$img,'genre'=>$p['category'],'keywords'=>$p['tags'],'dateCreated'=>$p['year'],'author'=>['@type'=>'Person','name'=>$s['name']]];
 $eu=rawurlencode($url);$et=rawurlencode($p['title'].' - '.$s['name']);
@@ -40,7 +40,7 @@ $sh=['WhatsApp'=>"https://wa.me/?text=$et%20$eu",'X'=>"https://twitter.com/inten
 
 <section class="s2 sl"><div class="max-w-6xl mx-auto px-5">
 <?php if($yt):?><div class="aspect-video rounded-2xl overflow-hidden bg-black mb-5 rv"><iframe class="w-full h-full" src="<?=e($yt)?>" title="Video <?=e($p['title'])?>" allowfullscreen loading="lazy"></iframe></div><?php endif?>
-<?php if($media):?><div class="columns-1 sm:columns-2 gap-4"><?php foreach($media as $i=>$f):?><button class="rv pj block w-full mb-4 break-inside-avoid overflow-hidden rounded-2xl" onclick="lb(<?=$i?>)" aria-label="Perbesar foto <?=$i+1?>"><img loading="lazy" class="w-full" src="<?=$B?>uploads/<?=e($f)?>" alt="<?=e($p['title'])?> <?=$i+1?>"></button><?php endforeach?></div>
+<?php if($media):?><div class="columns-1 sm:columns-2 gap-4"><?php $k=0;foreach($media as $f):if(isvid($f)):?><div class="rv mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-black"><?=mt($f,'w-full',$p['title'],['b'=>$B,'ctl'=>1])?></div><?php else:?><button class="rv pj block w-full mb-4 break-inside-avoid overflow-hidden rounded-2xl" onclick="lb(<?=$k?>)" aria-label="Perbesar foto <?=++$k?>"><?=mt($f,'w-full',$p['title'].' '.$k,['b'=>$B])?></button><?php endif;endforeach?></div>
 <?php elseif(!$yt):?><div class="aspect-video rounded-2xl" style="background:linear-gradient(135deg,#6B3DF5,#FF4D5E)"></div><?php endif?></div></section>
 
 <section class="s1 sl r"><div class="max-w-6xl mx-auto px-5 grid md:grid-cols-3 gap-10">
@@ -54,11 +54,12 @@ $sh=['WhatsApp'=>"https://wa.me/?text=$et%20$eu",'X'=>"https://twitter.com/inten
 <dialog id="lbx" class="p-0 bg-transparent max-w-none max-h-none w-screen h-screen"><div class="relative w-full h-full grid place-items-center" style="background:#000d"><img id="lim" alt="" class="max-h-[90vh] max-w-[94vw] object-contain"><button id="lp" class="nv" aria-label="Sebelumnya">‹</button><button id="ln" class="nv" style="left:auto;right:.5rem" aria-label="Berikutnya">›</button></div></dialog>
 <script src="<?=$B?>assets/site.js"></script>
 <script>
-const PID=<?=(int)$p['id']?>,MD=<?=json_encode($media)?>,U=<?=json_encode($url)?>,L=$('#lbx'),SM=$('#shm');let li=0;
+const PID=<?=(int)$p['id']?>,MD=<?=json_encode($imgs)?>,U=<?=json_encode($url)?>,L=$('#lbx'),SM=$('#shm');let li=0;
 async function share(){if(navigator.share&&matchMedia('(pointer:coarse)').matches){try{await navigator.share({title:document.title,url:U});tr('share','native',PID)}catch(e){}return}SM.classList.toggle('hidden')}
 $$('[data-sh]').forEach(a=>a.onclick=()=>tr('share',a.dataset.sh,PID));
 async function cp_(){try{await navigator.clipboard.writeText(U)}catch(e){const t=document.createElement('textarea');t.value=U;document.body.append(t);t.select();document.execCommand('copy');t.remove()}$('#cpb').textContent='Tersalin!';tr('share','salin',PID);setTimeout(()=>$('#cpb').textContent='Salin tautan',1800)}
 function lb(i){li=(i+MD.length)%MD.length;$('#lim').src='<?=$B?>uploads/'+encodeURIComponent(MD[li]);if(!L.open){L.showModal();tr('gallery','',PID)}}
+$$('video[controls]').forEach(v=>v.addEventListener('play',()=>tr('video',v.getAttribute('src').split('/').pop().split('#')[0],PID),{once:true}));
 $('#lp').onclick=e=>{e.stopPropagation();lb(li-1)};$('#ln').onclick=e=>{e.stopPropagation();lb(li+1)};L.onclick=()=>L.close();
 addEventListener('keydown',e=>{if(!L.open)return;if(e.key=='ArrowLeft')lb(li-1);if(e.key=='ArrowRight')lb(li+1)});
 let tx=0;L.ontouchstart=e=>tx=e.touches[0].clientX;L.ontouchend=e=>{const d=e.changedTouches[0].clientX-tx;if(Math.abs(d)>50)lb(li+(d<0?1:-1))};

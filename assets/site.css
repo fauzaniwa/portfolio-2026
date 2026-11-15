@@ -20,7 +20,7 @@
 .wig{display:inline-block;animation:wg 3s infinite}@keyframes wg{0%,88%,100%{transform:rotate(0)}92%{transform:rotate(25deg)}96%{transform:rotate(-20deg)}}
 .js .rv{opacity:0;transform:scale(.92) rotate(-2deg)}.js .rv.in{opacity:1;transform:none;transition:.6s cubic-bezier(.2,1.4,.4,1)}
 .tilt{transition:transform .15s}
-@media(hover:hover){.pj img{filter:grayscale(1);transition:.5s}.pj:hover img{filter:none;transform:scale(1.08)}}
+@media(hover:hover){.pj img,.pj video{filter:grayscale(1);transition:.5s}.pj:hover img,.pj:hover video{filter:none;transform:scale(1.08)}}
 .lk svg{fill:none;stroke:currentColor;stroke-width:2}.lk.on svg{fill:#FF4D5E;stroke:#FF4D5E}.lk:active svg{transform:scale(1.5)}
 .nv{position:absolute;top:50%;left:.5rem;width:2.5rem;height:2.5rem;border-radius:50%;background:#D6FF3D;color:#0B0B0F;font-size:1.4rem;transform:translateY(-50%)}#gn{left:auto;right:.5rem}
 #gt button{border:2px solid transparent}#gt button.on{border-color:#D6FF3D}

@@ -8,7 +8,7 @@ if($a=='like'&&$pid){$d=db();$v=vid();$q=$d->prepare("DELETE FROM likes WHERE pi
  $n=$d->prepare("SELECT likes FROM projects WHERE id=?");$n->execute([$pid]);
  echo json_encode(['liked'=>$l,'likes'=>(int)$n->fetchColumn()]);exit;}
 $t=$_POST['type']??'';
-if($a=='track'&&in_array($t,['section','project_view','filter','role','contact','share','gallery'])){
+if($a=='track'&&in_array($t,['section','project_view','filter','role','contact','share','gallery','video'])){
  if($t=='project_view'&&$pid){$q=db()->prepare("SELECT COUNT(*) FROM events WHERE type='project_view' AND pid=? AND vid=? AND created>NOW()-INTERVAL 30 MINUTE");$q->execute([$pid,vid()]);
   if($q->fetchColumn()){echo '{}';exit;}db()->prepare("UPDATE projects SET views=views+1 WHERE id=?")->execute([$pid]);}
  track($t,$_POST['ref']??'',$pid);}

@@ -1,6 +1,6 @@
 <?php require 'config.php';session_start();
 $adm=!empty($_SESSION['adm']);$pv=$adm&&isset($_GET['preview']);
-if(!$adm)track('pageview');
+maint();if(!$adm)track('pageview');
 $d=db();$s=array_column($d->query("SELECT k,v FROM settings")->fetchAll(),'v','k')+['photo'=>'','photo_about'=>'','cv'=>'','nick'=>'Iwa'];
 $P=$d->query("SELECT * FROM projects ".($pv?'':"WHERE status='published' ")."ORDER BY sort_order,id DESC")->fetchAll();
 $M=[];foreach($d->query("SELECT project_id,file FROM project_media ORDER BY sort_order,id") as $m)$M[$m['project_id']][]=$m['file'];
@@ -17,11 +17,11 @@ $tv=array_sum(array_column($P,'views'));$tl=array_sum(array_column($P,'likes'));
 $soc=['instagram'=>'https://instagram.com/','linkedin'=>'','github'=>'https://github.com/','whatsapp'=>'https://wa.me/','email'=>'mailto:'];
 $ab=['instagram'=>'IG','linkedin'=>'IN','github'=>'GH','whatsapp'=>'WA','email'=>'@'];
 $pal=['#FFB8D9','#D6FF3D','#B7A4FF','#0B0B0F'];
-$mq='';foreach($C as $c)$mq.='<span class="flex items-center gap-3 shrink-0 text-2xl font-extrabold">'.($c['logo']?'<img src="uploads/'.e($c['logo']).'" alt="'.e($c['name']).'" class="h-8">':e($c['name'])).'<i class="not-italic" style="color:var(--ac)">✦</i></span>';
-$ph=$s['photo']?'<img src="uploads/'.e($s['photo']).'" alt="Foto '.e($s['name']).'" class="relative w-full h-full object-cover">':'<div class="relative w-full h-full grid place-items-center bg-cream text-ink font-extrabold text-8xl">FA</div>';
-$ph2=$s['photo_about']?'<img src="uploads/'.e($s['photo_about']).'" alt="Foto profil '.e($s['name']).'" class="relative w-full h-full object-cover">':$ph;
+$mq='';foreach($C as $c)$mq.='<span class="flex items-center gap-3 shrink-0 text-2xl font-extrabold">'.($c['logo']?mt($c['logo'],'h-8',$c['name']):e($c['name'])).'<i class="not-italic" style="color:var(--ac)">✦</i></span>';
+$ph=$s['photo']?mt($s['photo'],'relative w-full h-full object-cover','Foto '.$s['name'],['eager'=>1]):'<div class="relative w-full h-full grid place-items-center bg-cream text-ink font-extrabold text-8xl">FA</div>';
+$ph2=$s['photo_about']?mt($s['photo_about'],'relative w-full h-full object-cover','Foto profil '.$s['name']):$ph;
 ?><!doctype html><html lang="id" class="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?=e($s['name'])?> | Game Developer, VR/AR, UI/UX, Project Manager</title><?=meta($s['name'].' | Game Developer, VR/AR, UI/UX, Project Manager',$s['tagline'],$s['photo']?base().'uploads/'.rawurlencode($s['photo']):'',base())?>
+<title><?=e($s['name'])?> | Game Developer, VR/AR, UI/UX, Project Manager</title><?=meta($s['name'].' | Game Developer, VR/AR, UI/UX, Project Manager',$s['tagline'],(($og=array_values(array_filter([$s['photo'],$s['photo_about']],fn($f)=>$f&&!isvid($f))))?base().'uploads/'.rawurlencode($og[0]):''),base())?>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Permanent+Marker&family=DM+Mono&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="assets/tw.js"></script>
@@ -59,7 +59,7 @@ $ph2=$s['photo_about']?'<img src="uploads/'.e($s['photo_about']).'" alt="Foto pr
 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-8">
 <?php foreach($P as $i=>$p):$bg=$pal[$i%4];$fg=$i%4==3?'#F1EDE4':'#0B0B0F';$cv=$p['media'][0]??'';?>
 <div class="rv pj" data-c="<?=e($p['category'])?>"><a href="<?=e(purl($p))?>" class="tilt cutc block p-3 h-full" style="background:<?=$bg?>;color:<?=$fg?>">
-<div class="aspect-[4/3] rounded-xl overflow-hidden" style="background:linear-gradient(135deg,#6B3DF5,#FF4D5E)"><?php if($cv):?><img loading="lazy" class="w-full h-full object-cover" src="uploads/<?=e($cv)?>" alt="<?=e($p['title'])?>"><?php endif?></div>
+<div class="aspect-[4/3] rounded-xl overflow-hidden" style="background:linear-gradient(135deg,#6B3DF5,#FF4D5E)"><?php if($cv):?><?=mt($cv,'w-full h-full object-cover',$p['title'])?><?php endif?></div>
 <div class="p-2 pt-4 flex items-start justify-between gap-2"><div><h3 class="text-xl font-extrabold leading-tight"><?=e($p['title'])?></h3><p class="text-sm opacity-70"><?=e($p['category'])?><?=$p['year']?' / '.e($p['year']):''?><?=$p['status']=='draft'?' (draft)':''?></p></div><i class="ar shrink-0">↗</i></div>
 <p class="text-sm opacity-80 px-2"><?=e($p['summary'])?></p>
 <div class="flex items-center gap-4 px-2 pt-3 text-sm"><span><svg class="w-4 h-4 inline"><use href="#eye"/></svg> <b class="vw" data-p="<?=$p['id']?>"><?=$p['views']?></b></span>

@@ -2,3 +2,15 @@
 RewriteEngine On
 RewriteRule ^karya/([a-z0-9-]+)/?$ project.php?slug=$1 [L,QSA]
 </IfModule>
+Options -Indexes
+# Jika situs di subfolder, awali path di bawah dengan subfolder itu, misal /portfolio/error.php
+ErrorDocument 400 /error.php?c=400
+ErrorDocument 403 /error.php?c=403
+ErrorDocument 404 /error.php?c=404
+ErrorDocument 405 /error.php?c=405
+ErrorDocument 500 /error.php?c=500
+ErrorDocument 502 /error.php?c=502
+ErrorDocument 503 /error.php?c=503
+<FilesMatch "\.(sql)$|^(config|nav)\.php$">
+Require all denied
+</FilesMatch>

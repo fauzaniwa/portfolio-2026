@@ -16,3 +16,6 @@ $$('.tilt').forEach(c=>{c.onmousemove=e=>{const r=c.getBoundingClientRect(),x=(e
 $$('.mag').forEach(b=>{b.onmousemove=e=>{const r=b.getBoundingClientRect();b.style.transform=`translate(${(e.clientX-r.left-r.width/2)*.25}px,${(e.clientY-r.top-r.height/2)*.35}px)`};b.onmouseleave=()=>b.style.transform=''});
 onmousemove=e=>{cu.style.opacity=1;cu.style.transform=`translate(${e.clientX}px,${e.clientY}px)`;$$('[data-px]').forEach(x=>x.style.translate=`${(e.clientX/innerWidth-.5)*x.dataset.px}px ${(e.clientY/innerHeight-.5)*x.dataset.px}px`)};
 document.addEventListener('mouseover',e=>cu.classList.toggle('big',!!e.target.closest('a,button,.tilt')))}
+
+const vio=new IntersectionObserver(es=>es.forEach(e=>{const v=e.target;if(e.isIntersecting)v.play().catch(()=>{});else v.pause()}),{threshold:.35});
+$$('video[data-auto]').forEach(v=>{if(RM)v.controls=true;else vio.observe(v)});
