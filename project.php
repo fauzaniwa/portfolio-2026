@@ -1,16 +1,16 @@
 <?php require 'config.php';session_start();
-$adm=!empty($_SESSION['adm']);$d=db();maint();
-$q=$d->prepare("SELECT * FROM projects WHERE ".(isset($_GET['slug'])?'slug=?':'id=?')." AND (status='published' OR ?=1)");
-$q->execute([$_GET['slug']??(int)($_GET['id']??0),(int)$adm]);$p=$q->fetch();
+$d=db();maint();$adm=owner();$UID=(int)$SITE['id'];
+$q=$d->prepare("SELECT * FROM projects WHERE user_id=? AND ".(isset($_GET['slug'])?'slug=?':'id=?')." AND (status='published' OR ?=1)");
+$q->execute([$UID,$_GET['slug']??(int)($_GET['id']??0),(int)$adm]);$p=$q->fetch();
 if(!$p)fail(404,'Karya yang Anda cari tidak ada atau belum dipublikasikan. Coba lihat karya lainnya.');
 $B=rtrim(dirname($_SERVER['SCRIPT_NAME']),'/\\').'/';
 if(!$adm){track('pageview','karya/'.($p['slug']?:$p['id']));pview($p['id'],$p['title']);}
 $p=$d->query("SELECT * FROM projects WHERE id=".(int)$p['id'])->fetch();
-$s=array_column($d->query("SELECT k,v FROM settings")->fetchAll(),'v','k')+['photo'=>'','cv'=>'','nick'=>'Iwa'];
+$st=$d->prepare("SELECT k,v FROM settings WHERE user_id=?");$st->execute([$UID]);$s=array_column($st->fetchAll(),'v','k')+['name'=>$SITE['username'],'photo'=>'','cv'=>'','nick'=>$SITE['username']];$GLOBALS['sn']=$s['name'];$GLOBALS['B']=$B;
 $md=$d->prepare("SELECT file FROM project_media WHERE project_id=? ORDER BY sort_order,id");$md->execute([$p['id']]);
 $media=array_merge($p['cover']?[$p['cover']]:[],$md->fetchAll(PDO::FETCH_COLUMN));
 $lq=$d->prepare("SELECT COUNT(*) FROM likes WHERE pid=? AND vid=?");$lq->execute([$p['id'],vid()]);$liked=(bool)$lq->fetchColumn();
-$all=$d->query("SELECT id,title,slug FROM projects WHERE status='published' ORDER BY sort_order,id DESC")->fetchAll();
+$all=$d->query("SELECT id,title,slug FROM projects WHERE user_id=$UID AND status='published' ORDER BY sort_order,id DESC")->fetchAll();
 $ix=array_search($p['id'],array_column($all,'id'));$pr=($ix!==false&&$ix>0)?$all[$ix-1]:null;$nx=($ix!==false&&isset($all[$ix+1]))?$all[$ix+1]:null;
 $url=base().purl($p);$ds=$p['summary']?:$p['description'];
 $imgs=array_values(array_filter($media,fn($f)=>!isvid($f)));$img=$imgs?base().'uploads/'.rawurlencode($imgs[0]):(($s['photo']&&!isvid($s['photo']))?base().'uploads/'.rawurlencode($s['photo']):'');
@@ -18,16 +18,15 @@ preg_match('/(?:youtu\.be\/|v=|embed\/)([\w-]{11})/',$p['video']??'',$m);$yt=$m?
 $ld=['@context'=>'https://schema.org','@type'=>'CreativeWork','name'=>$p['title'],'description'=>$ds,'url'=>$url,'image'=>$img,'genre'=>$p['category'],'keywords'=>$p['tags'],'dateCreated'=>$p['year'],'author'=>['@type'=>'Person','name'=>$s['name']]];
 $eu=rawurlencode($url);$et=rawurlencode($p['title'].' - '.$s['name']);
 $sh=['WhatsApp'=>"https://wa.me/?text=$et%20$eu",'X'=>"https://twitter.com/intent/tweet?text=$et&url=$eu",'LinkedIn'=>"https://www.linkedin.com/sharing/share-offsite/?url=$eu",'Facebook'=>"https://www.facebook.com/sharer/sharer.php?u=$eu",'Telegram'=>"https://t.me/share/url?url=$eu&text=$et"];
-?><!doctype html><html lang="id" class="dark" data-b="<?=e($B)?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+?><!doctype html><html lang="id" data-th="<?=e($SITE['theme'])?>" data-dm="<?=THEMES[$SITE['theme']][5]?>" data-b="<?=e($B)?>" data-u="<?=e(sq()?$SITE['username']:'')?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=e($p['title'])?> | <?=e($s['name'])?></title>
 <?=meta($p['title'].' | '.$s['name'],$ds,$img,$url,'article')?>
 <script type="application/ld+json"><?=json_encode(array_filter($ld),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_HEX_TAG)?></script>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Permanent+Marker&family=DM+Mono&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script><script src="<?=$B?>assets/tw.js"></script><link rel="stylesheet" href="<?=$B?>assets/site.css"></head>
+<script src="https://cdn.tailwindcss.com"></script><script src="<?=$B?>assets/tw.js"></script><link rel="stylesheet" href="<?=$B?>assets/site.css"><link rel="stylesheet" href="<?=$B?>assets/themes.css"><?=theme_head($SITE,$SITE['theme'])?></head>
 <body class="s1 font-d antialiased overflow-x-hidden">
 <?php $hl='Detail karya';require 'nav.php'?>
 <section class="s1 relative overflow-hidden pt-28 pb-24 lg:pt-36"><div class="gb absolute inset-0"></div><div class="absolute -top-24 right-0 w-96 h-96 rounded-full blur-3xl opacity-30 bg-lav"></div>
-<div class="relative max-w-6xl mx-auto px-5"><a href="<?=$B?>#karya" class="btn2 !py-1.5 text-sm mag">← Semua karya</a>
+<div class="relative max-w-6xl mx-auto px-5"><a href="<?=e(home($B))?>#karya" class="btn2 !py-1.5 text-sm mag">← Semua karya</a>
 <p class="font-m mk mt-8"><?=e($p['category'])?><?=$p['year']?' / '.e($p['year']):''?></p>
 <h1 class="font-extrabold uppercase tracking-tight leading-[.95] text-[clamp(2.2rem,8vw,6rem)] mt-2 break-words"><?=e($p['title'])?></h1>
 <p class="mu text-xl max-w-3xl mt-4"><?=e($p['summary'])?></p>
@@ -41,7 +40,7 @@ $sh=['WhatsApp'=>"https://wa.me/?text=$et%20$eu",'X'=>"https://twitter.com/inten
 <section class="s2 sl"><div class="max-w-6xl mx-auto px-5">
 <?php if($yt):?><div class="aspect-video rounded-2xl overflow-hidden bg-black mb-5 rv"><iframe class="w-full h-full" src="<?=e($yt)?>" title="Video <?=e($p['title'])?>" allowfullscreen loading="lazy"></iframe></div><?php endif?>
 <?php if($media):?><div class="columns-1 sm:columns-2 gap-4"><?php $k=0;foreach($media as $f):if(isvid($f)):?><div class="rv mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-black"><?=mt($f,'w-full',$p['title'],['b'=>$B,'ctl'=>1])?></div><?php else:?><button class="rv pj block w-full mb-4 break-inside-avoid overflow-hidden rounded-2xl" onclick="lb(<?=$k?>)" aria-label="Perbesar foto <?=++$k?>"><?=mt($f,'w-full',$p['title'].' '.$k,['b'=>$B])?></button><?php endif;endforeach?></div>
-<?php elseif(!$yt):?><div class="aspect-video rounded-2xl" style="background:linear-gradient(135deg,#6B3DF5,#FF4D5E)"></div><?php endif?></div></section>
+<?php elseif(!$yt):?><div class="aspect-video rounded-2xl" style="background:linear-gradient(135deg,var(--acl),var(--cor))"></div><?php endif?></div></section>
 
 <section class="s1 sl r"><div class="max-w-6xl mx-auto px-5 grid md:grid-cols-3 gap-10">
 <div class="md:col-span-2"><h2 class="font-extrabold text-3xl rv">Tentang karya ini</h2><div class="mu text-lg leading-relaxed mt-4 max-w-prose"><?=nl2br(e($p['description']?:$p['summary']))?></div></div>
@@ -49,7 +48,7 @@ $sh=['WhatsApp'=>"https://wa.me/?text=$et%20$eu",'X'=>"https://twitter.com/inten
 <?php if($p['tags']):?><p class="font-m text-xs mk mb-1">Tag</p><div class="flex flex-wrap gap-2"><?php foreach(array_filter(array_map('trim',explode(',',$p['tags']))) as $tg):?><span class="chip !font-normal"><?=e($tg)?></span><?php endforeach?></div><?php endif?></div></aside>
 <div class="md:col-span-3 grid sm:grid-cols-2 gap-4"><?php foreach([['← Sebelumnya',$pr],['Berikutnya →',$nx]] as [$lbl,$x]) if($x):?><a href="<?=e($B.purl($x))?>" class="sw cutc p-5 block"><span class="font-m text-xs mk"><?=$lbl?></span><span class="block font-extrabold text-2xl mt-1"><?=e($x['title'])?></span></a><?php endif?></div></div></section>
 
-<footer class="s2 sl"><div class="max-w-6xl mx-auto px-5 flex flex-wrap justify-between items-center gap-4"><p class="mu text-sm">© <?=date('Y')?> <?=e($s['name'])?></p><div class="flex gap-3"><a href="<?=$B?>download.php" class="btn">Unduh CV <i>↓</i></a><a href="<?=$B?>#kontak" class="btn2">Kontak</a></div></div></footer>
+<footer class="s2 sl"><div class="max-w-6xl mx-auto px-5 flex flex-wrap justify-between items-center gap-4"><p class="mu text-sm">© <?=date('Y')?> <?=e($s['name'])?><?php if(plat('signup','open')!=='closed'):?> · <a class="underline" href="<?=$B?>daftar.php">Buat portfolio Anda</a><?php endif?></p><div class="flex gap-3"><a href="<?=e(lnk($B.'download.php'))?>" class="btn">Unduh CV <i>↓</i></a><a href="<?=e(home($B))?>#kontak" class="btn2">Kontak</a></div></div></footer>
 
 <dialog id="lbx" class="p-0 bg-transparent max-w-none max-h-none w-screen h-screen"><div class="relative w-full h-full grid place-items-center" style="background:#000d"><img id="lim" alt="" class="max-h-[90vh] max-w-[94vw] object-contain"><button id="lp" class="nv" aria-label="Sebelumnya">‹</button><button id="ln" class="nv" style="left:auto;right:.5rem" aria-label="Berikutnya">›</button></div></dialog>
 <script src="<?=$B?>assets/site.js"></script>

@@ -1,2 +1,2 @@
-tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{d:['Bricolage Grotesque','sans-serif'],h:['Permanent Marker','cursive'],m:['DM Mono','monospace']},colors:{lime:'#D6FF3D',lav:'#B7A4FF',cor:'#FF4D5E',ink:'#0B0B0F',cream:'#F1EDE4'}}}};
-document.documentElement.classList.add('js');document.documentElement.classList.toggle('dark',(localStorage.t||'d')=='d')
+tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{d:['var(--fd)','sans-serif'],h:['var(--fh)','cursive'],m:['DM Mono','monospace']},colors:{lime:'var(--lime)',lav:'var(--lav)',cor:'var(--cor)',ink:'var(--ink)',cream:'var(--cream)'}}}};
+const HT=document.documentElement;window.TK='t_'+(HT.dataset.th||'admin');HT.classList.add('js');HT.classList.toggle('dark',(localStorage[TK]||HT.dataset.dm||'d')=='d')

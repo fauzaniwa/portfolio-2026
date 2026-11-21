@@ -1,0 +1,20 @@
+/* Tema Mindaro: kuning dan biru, ramah, coretan tangan */
+html[data-th=mindaro]{--dbg:var(--b);--dfg:var(--y);--dcd:color-mix(in srgb,var(--b) 80%,#000);--dbd:color-mix(in srgb,var(--b) 65%,var(--y));--dmu:color-mix(in srgb,var(--y) 72%,var(--b));--dac:var(--y);--lbg:var(--y);--lfg:var(--b);--lcd:var(--w);--lbd:color-mix(in srgb,var(--b) 22%,var(--y));--lmu:color-mix(in srgb,var(--b) 70%,var(--y));--lac:var(--b)}
+[data-th=mindaro] h1,[data-th=mindaro] h2{letter-spacing:-.02em}
+[data-th=mindaro] .btn{background:var(--fg);color:var(--bg);clip-path:none;border-radius:9999px}
+[data-th=mindaro] .btn:hover{background:var(--a);color:var(--b)}
+[data-th=mindaro] .btn i{background:var(--bg);color:var(--fg)}
+[data-th=mindaro] .ar{background:var(--y);color:var(--b)}
+[data-th=mindaro] .cutc{clip-path:none;border-radius:1.75rem}
+[data-th=mindaro] .sl{clip-path:none;margin-top:0;padding:5rem 0}
+[data-th=mindaro] .gb{display:none}
+[data-th=mindaro] .sw{background:linear-gradient(var(--a),var(--a)) left/0 100% no-repeat,var(--cd)}
+[data-th=mindaro] .sw:hover,[data-th=mindaro] .sw:hover .mu,[data-th=mindaro] .sw:hover .mk{color:var(--b)}
+[data-th=mindaro] .pj img,[data-th=mindaro] .pj video{filter:none}
+[data-th=mindaro] .nv{background:var(--y);color:var(--b)}
+[data-th=mindaro] #cu{border-color:var(--fg)}
+[data-th=mindaro] #pg{background:var(--fg)!important}
+.scl{height:30px;margin-top:-1px;position:relative}
+.scl::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 28px 0,var(--ub) 27.5px,transparent 28px) 0 0/56px 30px repeat-x}
+.ups1{--ub:var(--lbg)}html.dark .ups1{--ub:var(--dbg)}.ups2{--ub:var(--dbg)}html.dark .ups2{--ub:var(--lbg)}
+.hvl{transition:.25s}.hvl:hover{background:color-mix(in srgb,var(--a) 45%,transparent)}

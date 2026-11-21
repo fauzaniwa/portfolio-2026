@@ -1,0 +1,2 @@
+tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{d:['var(--fd)','sans-serif'],h:['var(--fh)','cursive'],m:['DM Mono','monospace']},colors:{lime:'var(--lime)',lav:'var(--lav)',cor:'var(--cor)',ink:'var(--ink)',cream:'var(--cream)'}}}};
+const HT=document.documentElement;window.TK='t_'+(HT.dataset.th||'admin');HT.classList.add('js');HT.classList.toggle('dark',(localStorage[TK]||HT.dataset.dm||'d')=='d')

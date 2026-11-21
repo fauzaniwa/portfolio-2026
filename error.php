@@ -18,9 +18,9 @@ $dr=rtrim(str_replace('\\','/',(string)realpath($_SERVER['DOCUMENT_ROOT']??'')),
 $B=($dr&&strpos($dd,$dr)===0)?rtrim(substr($dd,strlen($dr)),'/').'/':'/';
 $ru=$_SERVER['REDIRECT_URL']??$_SERVER['REQUEST_URI']??'/';$sg=[];
 if($code==404&&function_exists('db')){try{
- $sg=db()->query("SELECT id,title,slug,category FROM projects WHERE status='published' ORDER BY sort_order,id DESC LIMIT 3")->fetchAll();
+ $sg=db()->query("SELECT id,title,slug,category FROM projects WHERE user_id=".(int)($GLOBALS['SITE']['id']??1)." AND status='published' ORDER BY sort_order,id DESC LIMIT 3")->fetchAll();
  if(session_status()!=PHP_SESSION_ACTIVE)@session_start();
- if(empty($_SESSION['adm'])&&!preg_match('/\.(ico|png|jpe?g|webp|svg|map|txt|xml)$/i',$ru))track('404',$ru);
+ if(empty($_SESSION['uid'])&&!preg_match('/\.(ico|png|jpe?g|webp|svg|map|txt|xml)$/i',$ru))track('404',$ru);
 }catch(Throwable $x){}}
 $ds=str_split(str_pad((string)$code,3,'0'));
 ?><!doctype html><html lang="id" class="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
@@ -36,7 +36,7 @@ $ds=str_split(str_pad((string)$code,3,'0'));
 .st{animation:fl 4s ease-in-out infinite}
 </style></head>
 <body class="s1 font-d antialiased overflow-x-hidden min-h-screen flex flex-col">
-<header class="px-5 py-4 flex items-center justify-between relative z-10"><a href="<?=$B?>" class="font-extrabold text-xl">iwa<span class="mk">.</span></a><button id="th" class="w-9 h-9 rounded-full border" style="border-color:var(--bd)" aria-label="Ganti tema">◐</button></header>
+<header class="px-5 py-4 flex items-center justify-between relative z-10"><a href="<?=$B?>" class="font-extrabold text-xl"><?=e(strtolower($GLOBALS['SITE']['username']??'home'))?><span class="mk">.</span></a><button id="th" class="w-9 h-9 rounded-full border" style="border-color:var(--bd)" aria-label="Ganti tema">◐</button></header>
 <main class="relative flex-1 grid place-items-center px-5 py-8 overflow-hidden"><div class="gb absolute inset-0"></div>
 <span class="st absolute top-[12%] left-[8%] text-3xl mk" aria-hidden="true">✦</span><span class="st absolute bottom-[18%] right-[10%] text-4xl font-h mk" style="animation-delay:1s" aria-hidden="true">?!</span><span class="st absolute top-[20%] right-[18%] text-2xl" style="color:<?=$col?>;animation-delay:2s" aria-hidden="true">✦</span>
 <div class="relative text-center max-w-2xl">
@@ -53,7 +53,7 @@ $ds=str_split(str_pad((string)$code,3,'0'));
 </div></main>
 <footer><div class="hz"></div><div class="bg-lime text-ink font-extrabold uppercase py-2 overflow-hidden"><div class="mq"><?php for($i=0;$i<2;$i++):?><div class="flex gap-8 pr-8 whitespace-nowrap"><?php for($j=0;$j<8;$j++):?><span>Error <?=$code?> ✦ <?=e($tag)?> ✦</span><?php endfor?></div><?php endfor?></div></div></footer>
 <script>
-document.getElementById('th').onclick=()=>{const d=document.documentElement.classList.toggle('dark');localStorage.t=d?'d':'l'};
+document.getElementById('th').onclick=()=>{const d=document.documentElement.classList.toggle('dark');localStorage[TK]=d?'d':'l'};
 const hp=document.getElementById('hp');hp.onclick=()=>{hp.classList.remove('hop');void hp.offsetWidth;hp.classList.add('hop')};
 if(matchMedia('(hover:hover)').matches&&!matchMedia('(prefers-reduced-motion:reduce)').matches)onmousemove=e=>{hp.style.translate=`${(e.clientX/innerWidth-.5)*30}px ${(e.clientY/innerHeight-.5)*30}px`};
 </script></body></html>

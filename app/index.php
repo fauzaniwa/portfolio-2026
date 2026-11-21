@@ -1,0 +1,322 @@
+<?php
+require __DIR__.'/../config.php';
+session_set_cookie_params(['httponly'=>true,'samesite'=>'Strict','path'=>'/']);session_start();
+header('X-Robots-Tag: noindex, nofollow');
+const IMG=['jpg','jpeg','png','webp','gif'];
+const MEDIA=['jpg','jpeg','png','webp','gif','mp4','webm','ogv','m4v','mov'];
+function tk(){return $_SESSION['t']??=bin2hex(random_bytes(16));}
+function ok(){if(!hash_equals($_SESSION['t']??'',$_POST['t']??''))die('Token tidak valid');}
+function qv($s){return db()->query($s)->fetchColumn();}
+function qa($s){return db()->query($s)->fetchAll();}
+function ini1($s){return strtoupper(function_exists('mb_substr')?mb_substr($s,0,1):substr($s,0,1));}
+function vidok($p,$x){$h=(string)file_get_contents($p,false,null,0,12);if($x=='webm')return substr($h,0,4)=="\x1A\x45\xDF\xA3";if($x=='ogv')return substr($h,0,4)==='OggS';return in_array(substr($h,4,4),['ftyp','moov','mdat','wide','free','skip'],true);}
+function up($f,$ex){if(!$f)return;if(in_array($f['error']??0,[1,2])){$GLOBALS['upe']=1;return;}if(($f['error']??1)!==0)return;
+ $x=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));if(!in_array($x,$ex))return;$v=isvid($f['name']);
+ if($x=='pdf'){if(file_get_contents($f['tmp_name'],false,null,0,4)!=='%PDF')return;}elseif($v){if(!vidok($f['tmp_name'],$x))return;}elseif(!@getimagesize($f['tmp_name']))return;
+ $n=bin2hex(random_bytes(8)).".$x";move_uploaded_file($f['tmp_name'],__DIR__."/../uploads/$n");return $n;}
+function ago($t){$d=time()-strtotime($t);return $d<60?'baru saja':($d<3600?floor($d/60).' mnt lalu':($d<86400?floor($d/3600).' jam lalu':floor($d/86400).' hari lalu'));}
+$H='<!doctype html><html lang=id><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=robots content=noindex><title>CMS Portfolio</title><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Permanent+Marker&family=DM+Mono&display=swap" rel=stylesheet><script src="https://cdn.tailwindcss.com"></script><script src="../assets/tw.js"></script><link rel=stylesheet href="../assets/site.css"><link rel=stylesheet href="../assets/admin.css"><body class="s1 font-d antialiased">';
+if(isset($_GET['out'])){session_destroy();header('Location: ./');exit;}
+require __DIR__.'/../auth.php';require __DIR__.'/../charts.php';
+if(empty($_SESSION['uid']))do_login();
+if(isset($_GET['stop'])&&!empty($_SESSION['imp'])){$_SESSION['uid']=$_SESSION['imp'];$_SESSION['role']='admin';unset($_SESSION['imp']);header('Location: ../'.CONSOLE.'/');exit;}
+$U=(int)$_SESSION['uid'];$q=db()->prepare("SELECT * FROM users WHERE id=?");$q->execute([$U]);$ME=$q->fetch();
+if(!$ME||$ME['status']!=='active'){session_destroy();header('Location: ./');exit;}
+$SITE=$ME;$IMP=!empty($_SESSION['imp']);
+
+
+$T=[
+'projects'=>['Karya','Portofolio yang tampil di beranda dan punya halaman detail sendiri',[
+ 'title'=>['Judul karya','text','Tampil sebagai judul kartu dan halaman detail','Informasi utama'],
+ 'summary'=>['Ringkasan singkat','text:140','Satu kalimat yang tampil di kartu karya'],
+ 'category'=>['Kategori','seg:Game Dev,VR/AR,UI/UX,Project Management,Animation,Web','Dipakai untuk filter di beranda'],
+ 'description'=>['Deskripsi lengkap','textarea','Ceritakan peran Anda, tantangan, dan hasilnya'],
+ 'year'=>['Tahun','short',''],'slug'=>['Alamat halaman','short','Kosongkan agar dibuat dari judul'],
+ 'tags'=>['Tag','text','Pisahkan dengan koma, misalnya: Unity, C#, WebGL'],
+ 'link'=>['Tautan proyek','text','URL game, demo, atau Behance (opsional)','Tautan dan media'],
+ 'video'=>['Video YouTube','text','Tempel tautan YouTube (opsional)'],
+ 'cover'=>['Sampul (foto atau video)','file','Tampil di kartu. Video diputar otomatis tanpa suara. Foto pertama dipakai sebagai gambar preview saat tautan dibagikan'],
+ 'status'=>['Status','seg:published|Terbit di situs,draft|Draft (disembunyikan)','Draft hanya terlihat lewat Preview situs','Publikasi'],
+ 'sort_order'=>['Urutan','number','Angka kecil tampil lebih dulu']]],
+'services'=>['Layanan','Peran yang tampil sebagai #01 sampai #04 di beranda',[
+ 'title'=>['Nama layanan','text','Samakan dengan kategori karya agar bisa memfilter','Informasi'],'description'=>['Deskripsi singkat','textarea',''],'sort_order'=>['Urutan','number','']]],
+'clients'=>['Klien','Brand dan institusi yang pernah bekerja sama dengan Anda',[
+ 'name'=>['Nama klien','text','','Informasi'],'project'=>['Jenis kerja sama','text','Misalnya: Freelance interactive'],'url'=>['Tautan','text','Website klien (opsional)'],
+ 'logo'=>['Logo (foto atau video)','file','Kosongkan untuk menampilkan nama klien sebagai teks','Logo'],'sort_order'=>['Urutan','number','','Tampilan']]],
+'achievements'=>['Prestasi','Penghargaan dan kompetisi yang pernah diraih',[
+ 'title'=>['Nama prestasi','text','Misalnya: Juara 1 Cipta Game Berbasis Budaya','Informasi'],'org'=>['Penyelenggara','text',''],'year'=>['Tahun','short',''],'sort_order'=>['Urutan','number','']]],
+'skills'=>['Keahlian','Daftar kemampuan yang dikelompokkan di bagian Tentang',[
+ 'name'=>['Nama keahlian','text','','Informasi'],'category'=>['Kelompok','text','Misalnya: Game & XR, Desain, Web, Manajemen'],'sort_order'=>['Urutan','number','']]],
+'history'=>['Pendidikan & Pekerjaan','Riwayat yang tampil di bagian Tentang',[
+ 'title'=>['Posisi atau jenjang','text','','Informasi'],'type'=>['Jenis','seg:Pendidikan,Pekerjaan',''],'org'=>['Institusi atau perusahaan','text',''],'years'=>['Periode','short','Misalnya: 2021 - 2025'],
+ 'description'=>['Keterangan','textarea',''],'sort_order'=>['Urutan','number','Yang paling atas dianggap "terakhir"']]],
+'settings'=>['Pengaturan','Profil, foto, CV, dan kontak',[
+ 'name'=>['Nama lengkap','text','','Profil'],'nick'=>['Nama panggilan','short',''],'tagline'=>['Tagline','textarea','Kalimat pembuka di bagian hero dan deskripsi saat dibagikan'],'about'=>['Tentang saya','textarea',''],'location'=>['Lokasi','short','Misalnya: Bandung, Indonesia'],'sticker'=>['Teks stiker hero','text','Stiker miring di foto hero. Contoh: Founder DangDang Studio'],'cta'=>['Kalimat ajakan','text','Judul besar di bagian kontak. Contoh: Mari buat sesuatu yang keren!'],'bubble'=>['Teks gelembung (tema Mindaro)','short','Contoh: Kamu pasti bisa!'],
+ 'photo'=>['Media hero (foto atau video)','file','Tampil di bagian atas beranda. Video diputar otomatis tanpa suara dan berulang. Disarankan rasio 4:5','Foto dan video'],'photo_about'=>['Media profil (foto atau video)','file','Media berbeda untuk kartu polaroid di bagian Tentang'],
+ 'cv'=>['File CV (PDF)','pdf','Dipakai oleh semua tombol Unduh CV','Dokumen'],
+ 'email'=>['Email','text','','Kontak dan sosial media'],'whatsapp'=>['WhatsApp','short','Nomor dengan kode negara, misalnya 628123456789'],'instagram'=>['Instagram','short','Username tanpa @'],'linkedin'=>['LinkedIn','text','URL lengkap profil'],'github'=>['GitHub','short','Username'],
+ 'maintenance'=>['Mode pemeliharaan','seg:off|Mati (situs normal),on|Hidup (pengunjung melihat halaman maintenance)','Saat hidup, hanya Anda yang sudah login CMS bisa melihat situs. Jangan lupa matikan lagi.','Pemeliharaan']]]];
+$t=$_GET['t']??'dashboard';if(!in_array($t,['dashboard','theme','akun'])&&!isset($T[$t]))$t='dashboard';
+
+function drop($n,$v,$pdf=false){
+ $pv=$pdf?'<div class=pdf>PDF'.($v?'<small>'.e($v).'</small>':'').'</div>':($v?mt($v,'','',['b'=>'../','z'=>1,'still'=>1]):'＋');
+ return "<label class=drop data-drop><input type=file name=$n accept='".($pdf?'application/pdf':'image/*,video/*')."' hidden><div class=dz>$pv</div><div class=dt><b>".($pdf?'Pilih file PDF':'Tarik foto atau video ke sini')."</b><span>atau klik untuk memilih. ".($pdf?'Hanya PDF.':'Foto: JPG, PNG, WEBP. Video: MP4, WEBM.')."</span><em data-fn>".($v?'Sudah ada file. Pilih lagi untuk mengganti.':'Belum ada file dipilih')."</em></div></label>";}
+function galfld($id){$h="<div class='fld sm:col-span-2'><label class=lbl>Galeri foto dan video</label><div class=gal>";
+ foreach(($id?qa("SELECT * FROM project_media WHERE project_id=".(int)$id." ORDER BY sort_order,id"):[]) as $m)$h.="<label class=th>".mt($m['file'],'','',['b'=>'../','z'=>1,'still'=>1]).(isvid($m['file'])?'<i class=vbd>▶ Video</i>':'')."<input type=checkbox name=rm[] value={$m['id']} hidden><span class=rm>Hapus</span></label>";
+ return $h."</div><label class='drop slim' data-drop data-multi><input type=file name='media[]' multiple accept='image/*,video/*' hidden><div class=dt><b>Tambah foto atau video galeri</b><span>Pilih banyak file sekaligus atau tarik ke sini. Tidak ada batas jumlah.</span><em data-fn>Klik foto untuk memperbesar. Tombol Hapus menandai foto yang akan dihapus.</em></div></label></div>";}
+function fld($n,$d,$v){[$l,$ty,$h]=$d;$k=explode(':',$ty,2);$wd=in_array($k[0],['short','number'])?'':'sm:col-span-2';
+ $o="<div class='fld $wd'><label class=lbl for=f_$n>$l</label>";
+ if($k[0]=='textarea')$o.="<textarea id=f_$n name=$n rows=6 class=inp>".e($v)."</textarea>";
+ elseif($k[0]=='seg'){$op=explode(',',$k[1]);$v=$v!==''?$v:explode('|',$op[0])[0];$o.='<div class=seg>';foreach($op as $x){$p=explode('|',$x);$o.="<label><input type=radio name=$n value='".e($p[0])."'".($p[0]==$v?' checked':'')."><span>".e($p[1]??$p[0])."</span></label>";}$o.='</div>';}
+ elseif($k[0]=='file'||$k[0]=='pdf')$o.=drop($n,$v,$k[0]=='pdf');
+ else{$ml=ctype_digit($k[1]??'')?" maxlength=$k[1] data-c":'';$o.="<input id=f_$n name=$n type=".($k[0]=='number'?'number':'text')." value='".e($v)."' class=inp$ml".(in_array($n,['title','name'])?' required':'').">";}
+ return $o.($h?"<p class=hint>$h</p>":'').'</div>';}
+function live($r){$cv=$r['cover']??'';return "<aside class=live><p class=eyebrow>Pratinjau kartu</p><div class='lc cutc mt-2'><div class=lc-i>".($cv?mt($cv,'','',['b'=>'../','still'=>1]):'')."</div><b data-lt class='block mt-2 text-lg leading-tight'>".e($r['title']??'')."</b><small data-lc class=opacity-70>".e($r['category']??'')."</small><p data-ls class='text-sm opacity-80 mt-1'>".e($r['summary']??'')."</p></div><p class=hint>Beginilah karya tampil di beranda. Berubah otomatis saat Anda mengetik.</p></aside>";}
+function frm($t,$id){global $T;[$nm,$sb,$F]=$T[$t];
+ $r=$t=='settings'?array_column(qa("SELECT k,v FROM settings WHERE user_id=".(int)$GLOBALS['U']),'v','k'):($id?(qa("SELECT * FROM $t WHERE user_id=".(int)$GLOBALS['U']." AND id=".(int)$id)[0]??[]):[]);if($id&&!$r&&$t!='settings')return '<div class=sh-b><p>Data tidak ditemukan.</p></div>';
+ $S=[];$cur='';foreach($F as $n=>$d){$cur=$d[3]??$cur;$S[$cur][]=fld($n,$d,$r[$n]??'');if($t=='projects'&&$n=='cover')$S[$cur][]=galfld($id);}
+ $b='';foreach($S as $g=>$l)$b.="<section class=fs><h3>$g</h3><div class='grid sm:grid-cols-2 gap-4'>".implode('',$l)."</div></section>";
+ $lv=$t=='projects'?live($r):'';$f0=array_key_first($F);
+ $ti=$t=='settings'?'Pengaturan situs':($id&&!empty($r[$f0])?$r[$f0]:'Tambah '.$nm);
+ return "<form method=post enctype=multipart/form-data class=sheet-in><input type=hidden name=t value='".tk()."'><input type=hidden name=id value=$id><header class=sh-h><div class=flex-1><p class=eyebrow>".($t=='settings'?'Kelola':($id?'Ubah '.$nm:'Data baru'))."</p><h2 class='font-extrabold text-2xl'>".e($ti)."</h2></div>".($t=='settings'?'':"<button type=button data-close class=ib2 aria-label=Tutup>✕</button>")."</header><div class='sh-b".($lv?' has-live':'')."'><div>$b</div>$lv</div><footer class=sh-f>".($t=='settings'?'':'<button type=button data-close class=btn2>Batal</button>')."<button class=btn>Simpan <i>✓</i></button></footer></form>";}
+
+$DS=['daily'=>'Ringkasan harian (data grafik tren)','events'=>'Semua aktivitas (mentah)','projects'=>'Karya terpopuler','referrers'=>'Sumber kunjungan','devices'=>'Perangkat','hourly'=>'Jam tersibuk','sections'=>'Scroll per bagian'];
+function rngok($r){return in_array($r,['7','14','30','90','all'],true)?$r:'14';}
+function dset($k,$r){$f=$r=='all'?null:date('Y-m-d',strtotime('-'.((int)$r-1).' day'));$u=(int)$GLOBALS['U'];$w="user_id=$u".($f?" AND created>='$f'":'');$we="e.user_id=$u".($f?" AND e.created>='$f'":'');
+ if($k=='daily'){$ty=['project_view','like','unlike','share','cv_download','contact','gallery','video','filter','role','404'];$m=[];
+  foreach(qa("SELECT DATE(created) d,type,COUNT(*) c FROM events WHERE $w GROUP BY d,type") as $x)$m[$x['d']][$x['type']]=(int)$x['c'];
+  foreach(qa("SELECT DATE(created) d,COUNT(DISTINCT vid) c FROM events WHERE type='pageview' AND $w GROUP BY d") as $x)$m[$x['d']]['uniq']=(int)$x['c'];
+  $a=$f?:($m?min(array_keys($m)):date('Y-m-d'));$o=[];
+  for($ts=strtotime($a);$ts<=strtotime('today');$ts=strtotime('+1 day',$ts)){$d=date('Y-m-d',$ts);$x=$m[$d]??[];$o[]=array_merge([$d,$x['pageview']??0,$x['uniq']??0],array_map(fn($y)=>$x[$y]??0,$ty));}
+  return [array_merge(['tanggal','kunjungan','pengunjung_unik'],$ty),$o];}
+ if($k=='events')return [['id','waktu','jenis','ref','karya','perangkat','sumber','id_pengunjung'],array_map('array_values',qa("SELECT e.id,e.created,e.type,e.ref,p.title,e.device,e.referrer,e.vid FROM events e LEFT JOIN projects p ON p.id=e.pid WHERE $we ORDER BY e.id"))];
+ if($k=='projects')return [['judul','kategori','status','views_total','like_total','dibagikan','views_periode'],array_map('array_values',qa("SELECT p.title,p.category,p.status,p.views,p.likes,(SELECT COUNT(*) FROM events e WHERE e.pid=p.id AND e.type='share'),(SELECT COUNT(*) FROM events e WHERE e.pid=p.id AND e.type='project_view' AND $we) FROM projects p WHERE p.user_id=$u ORDER BY p.views DESC"))];
+ if($k=='referrers')return [['sumber','kunjungan'],array_map('array_values',qa("SELECT IF(referrer='','(langsung)',referrer) r,COUNT(*) c FROM events WHERE type='pageview' AND $w GROUP BY r ORDER BY c DESC"))];
+ if($k=='devices')return [['perangkat','kunjungan'],array_map('array_values',qa("SELECT device,COUNT(*) c FROM events WHERE type='pageview' AND $w GROUP BY device ORDER BY c DESC"))];
+ if($k=='hourly'){$m=array_fill(0,7,array_fill(0,24,0));foreach(qa("SELECT DAYOFWEEK(created) d,HOUR(created) h,COUNT(*) c FROM events WHERE type='pageview' AND $w GROUP BY d,h") as $x)$m[($x['d']+5)%7][(int)$x['h']]=(int)$x['c'];
+  $o=[];foreach(['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'] as $i=>$nm)for($h=0;$h<24;$h++)$o[]=[$nm,$h,$m[$i][$h]];return [['hari','jam','kunjungan'],$o];}
+ $fc=array_column(qa("SELECT ref,COUNT(DISTINCT vid) c FROM events WHERE type='section' AND $w GROUP BY ref"),'c','ref');$o=[];
+ foreach(['home'=>'Beranda','klien'=>'Klien','layanan'=>'Layanan','karya'=>'Karya','tentang'=>'Tentang','prestasi'=>'Prestasi','kontak'=>'Kontak'] as $a=>$l)$o[]=[$l,(int)($fc[$a]??0)];return [['bagian','pengunjung'],$o];}
+function outx($k,$fmt,$r){global $DS;[$h,$rows]=dset($k,$r);$n="portfolio-$k-".($r=='all'?'semua':$r.'hari').'-'.date('Ymd');
+ if($fmt=='json'){header('Content-Type: application/json; charset=utf-8');header("Content-Disposition: attachment; filename=\"$n.json\"");echo json_encode(array_map(fn($x)=>array_combine($h,$x),$rows),JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);}
+ else{header('Content-Type: text/csv; charset=utf-8');header("Content-Disposition: attachment; filename=\"$n.csv\"");echo "\xEF\xBB\xBF";$o=fopen('php://output','w');fputcsv($o,$h,',','"','');foreach($rows as $x)fputcsv($o,$x,',','"','');}
+ exit;}
+function snap($r,$raw=false){global $DS;$root=__DIR__.'/../backups';$dir=$root.'/u'.(int)$GLOBALS['U'];if(!is_dir($dir))@mkdir($dir,0755,true);if(!is_file("$root/.htaccess"))@file_put_contents("$root/.htaccess","Require all denied\n");
+ $d=[];foreach($DS as $k=>$_){if($k=='events'&&!$raw)continue;[$h,$rows]=dset($k,$r);$d[$k]=array_map(fn($x)=>array_combine($h,$x),$rows);}
+ $f='snapshot-'.date('Ymd-His').'-'.($r=='all'?'semua':$r.'hari').'.json';
+ file_put_contents("$dir/$f",json_encode(['dibuat'=>date('c'),'rentang'=>$r,'total_aktivitas'=>(int)qv("SELECT COUNT(*) FROM events WHERE user_id=".(int)$GLOBALS['U']),'data'=>$d],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT));return $f;}
+if($_SERVER['REQUEST_METHOD']=='POST'&&!$_POST&&($_SERVER['CONTENT_LENGTH']??0)>0){$_SESSION['f']='Unggahan terlalu besar. Naikkan upload_max_filesize dan post_max_size di PHP (sekarang '.ini_get('post_max_size').').';header('Location: ?t='.$t);exit;}
+if($_POST){ok();
+ if($a=$_POST['act']??''){$rb='?t=dashboard&r='.rngok($_POST['r']??'14');
+  if($a=='theme'){$th=isset(THEMES[$_POST['theme']??''])?$_POST['theme']:'arcade';$pl=[];
+   if(empty($_POST['reset'])){foreach(THEMES as $X)foreach($X[2] as $ck=>$cd){$c=$_POST['c'][$ck]??'';if(is_string($c)&&preg_match('/^#[0-9a-f]{6}$/i',$c)&&strtolower($c)!==strtolower($cd[1]))$pl['c'][$ck]=$c;}
+    if(in_array($_POST['fd']??'',FONTS_D,true))$pl['fd']=$_POST['fd'];if(in_array($_POST['fh']??'',FONTS_H,true))$pl['fh']=$_POST['fh'];}
+   db()->prepare("UPDATE users SET theme=?,palette=? WHERE id=?")->execute([$th,$pl?json_encode($pl):null,$U]);$_SESSION['f']=empty($_POST['reset'])?'Tema disimpan.':'Warna dan font dikembalikan ke bawaan tema.';$rb='?t=theme';}
+  elseif($a=='acct'){$em=strtolower(trim($_POST['email']??''));$msg=[];
+   if(filter_var($em,FILTER_VALIDATE_EMAIL)&&$em!==$ME['email']){$x=db()->prepare("SELECT COUNT(*) FROM users WHERE email=? AND id<>?");$x->execute([$em,$U]);if(!$x->fetchColumn()){db()->prepare("UPDATE users SET email=? WHERE id=?")->execute([$em,$U]);$msg[]='email diperbarui';}else $msg[]='email sudah dipakai';}
+   if(($np=$_POST['np']??'')!==''){if(strlen($np)>=8&&password_verify($_POST['cp']??'',$ME['pass'])){db()->prepare("UPDATE users SET pass=? WHERE id=?")->execute([password_hash($np,PASSWORD_DEFAULT),$U]);$msg[]='kata sandi diganti';}else $msg[]='kata sandi tidak diganti (minimal 8 karakter dan sandi lama harus benar)';}
+   $_SESSION['f']=$msg?ucfirst(implode(', ',$msg)).'.':'Tidak ada perubahan.';$rb='?t=akun';}
+  elseif($a=='snapshot')$_SESSION['f']='Snapshot tersimpan: '.snap(rngok($_POST['r']??'14'));
+  elseif($a=='bakdel'){$f=basename($_POST['f']??'');if(preg_match('/^snapshot-[\d-]+-[a-z0-9]+\.json$/',$f)&&is_file(__DIR__."/../backups/u$U/$f")){unlink(__DIR__."/../backups/u$U/$f");$_SESSION['f']='Snapshot dihapus.';}}
+  elseif($a=='reset'){
+   if(($_POST['confirm']??'')!=='RESET')$_SESSION['f']='Konfirmasi salah. Ketik RESET dengan huruf besar.';
+   else{$m=[];$ev=!empty($_POST['ev']);$vw=!empty($_POST['vw']);$lk=!empty($_POST['lk']);
+    if(!empty($_POST['bak'])&&($ev||$vw||$lk))$m[]='cadangan '.snap('all',true);
+    if($ev){$dy=(int)($_POST['older']??0);if(!in_array($dy,[30,90,180]))$dy=0;$c=$dy?db()->exec("DELETE FROM events WHERE user_id=$U AND created<NOW()-INTERVAL $dy DAY"):db()->exec("DELETE FROM events WHERE user_id=$U");$m[]=number_format((int)$c).' aktivitas dihapus';}
+    if($vw){db()->exec("UPDATE projects SET views=0 WHERE user_id=$U");$m[]='views karya direset';}
+    if($lk){db()->exec("DELETE FROM likes WHERE pid IN (SELECT id FROM projects WHERE user_id=$U)");db()->exec("UPDATE projects SET likes=0 WHERE user_id=$U");$m[]='like karya direset';}
+    $_SESSION['f']=($ev||$vw||$lk)?'Reset selesai: '.implode(', ',$m).'.':'Tidak ada yang dipilih untuk direset.';}}
+  header("Location: $rb");exit;}
+ if(isset($_POST['del'])&&$t!='settings'&&isset($T[$t])){$i=(int)$_POST['del'];if(!qv("SELECT COUNT(*) FROM $t WHERE id=$i AND user_id=$U"))$i=0;
+  if($t=='projects'){db()->prepare("DELETE FROM project_media WHERE project_id=?")->execute([$i]);db()->prepare("DELETE FROM likes WHERE pid=?")->execute([$i]);}
+  db()->prepare("DELETE FROM $t WHERE user_id=$U AND id=?")->execute([$i]);$_SESSION['f']='Data dihapus.';}
+ elseif($t=='settings'){foreach($T['settings'][2] as $k=>$d){
+   if(in_array($d[1],['file','pdf'])){if($n=up($_FILES[$k]??0,$d[1]=='pdf'?['pdf']:MEDIA))db()->prepare("REPLACE INTO settings(user_id,k,v) VALUES($U,?,?)")->execute([$k,$n]);}
+   else db()->prepare("REPLACE INTO settings(user_id,k,v) VALUES($U,?,?)")->execute([$k,$_POST[$k]??'']);}$_SESSION['f']='Pengaturan disimpan.';}
+ elseif(isset($T[$t])){$id=(int)($_POST['id']??0);$c=[];$v=[];
+  if($id&&!qv("SELECT COUNT(*) FROM $t WHERE id=$id AND user_id=$U")){$_SESSION['f']='Data tidak ditemukan.';header("Location: ?t=$t");exit;}
+  if($t=='projects'){$sg=slug($_POST['slug']?:$_POST['title'])?:'karya';$q=db()->prepare("SELECT COUNT(*) FROM projects WHERE slug=? AND id<>? AND user_id=$U");$q->execute([$sg,$id]);if($q->fetchColumn())$sg.='-'.(time()%10000);$_POST['slug']=$sg;}
+  foreach($T[$t][2] as $n=>$d){
+   if($d[1]=='file'){if($nm=up($_FILES[$n]??0,MEDIA)){$c[]=$n;$v[]=$nm;}}
+   else{$c[]=$n;$v[]=$d[1]=='number'?(int)($_POST[$n]??0):($_POST[$n]??'');}}
+  if($id){$q="UPDATE $t SET ".implode(',',array_map(fn($x)=>"$x=?",$c))." WHERE id=? AND user_id=$U";$v[]=$id;}
+  else $q="INSERT INTO $t(user_id,".implode(',',$c).") VALUES($U,".implode(',',array_fill(0,count($c),'?')).")";
+  db()->prepare($q)->execute($v);$pid=$id?:(int)db()->lastInsertId();
+  if($t=='projects'){
+   foreach($_POST['rm']??[] as $m){$m=(int)$m;$fn=qv("SELECT file FROM project_media WHERE id=$m AND project_id=$pid");if($fn){@unlink(__DIR__.'/../uploads/'.basename($fn));db()->exec("DELETE FROM project_media WHERE id=$m");}}
+   foreach($_FILES['media']['name']??[] as $k=>$z){$f=['name'=>$z,'tmp_name'=>$_FILES['media']['tmp_name'][$k],'error'=>$_FILES['media']['error'][$k]];
+    if($nm=up($f,MEDIA))db()->prepare("INSERT INTO project_media(project_id,file) VALUES(?,?)")->execute([$pid,$nm]);}}
+  $_SESSION['f']='Tersimpan.';}
+ if(!empty($GLOBALS['upe']))$_SESSION['f']='Disimpan, tetapi ada file yang terlalu besar dan tidak terunggah (batas '.ini_get('upload_max_filesize').'). Naikkan upload_max_filesize dan post_max_size di PHP.';
+header("Location: ?t=$t");exit;}
+if(isset($_GET['m'],$_GET['id'])&&isset($T[$t])&&$t!='settings'){echo frm($t,(int)$_GET['id']);exit;}
+if($t=='dashboard'&&isset($_GET['x'])){$x=$_GET['x'];$r=rngok($_GET['r']??'14');@set_time_limit(60);
+ if($x=='bak'){$f=basename($_GET['f']??'');$pf=__DIR__."/../backups/u$U/$f";if(preg_match('/^snapshot-[\d-]+-[a-z0-9]+\.json$/',$f)&&is_file($pf)){header('Content-Type: application/json');header("Content-Disposition: attachment; filename=\"$f\"");readfile($pf);exit;}fail(404);}
+ if(isset($DS[$x]))outx($x,($_GET['fmt']??'')=='json'?'json':'csv',$r);}
+
+
+
+$grp=['Ringkasan'=>['dashboard'],'Konten'=>['projects','services','clients','achievements','skills','history'],'Situs'=>['theme','settings','akun']];
+$ic=['dashboard'=>'▦','projects'=>'◈','services'=>'✦','clients'=>'◍','achievements'=>'★','skills'=>'⌘','history'=>'☰','settings'=>'⚙','theme'=>'✿','akun'=>'☺'];
+$NM=['dashboard'=>'Dashboard','theme'=>'Tema situs','akun'=>'Akun'];$tt=['dashboard'=>['Dashboard','Ringkasan aktivitas situs portfolio Anda'],'theme'=>['Tema situs','Pilih tema, lalu sesuaikan warna dan font'],'akun'=>['Akun','Alamat situs, email, dan kata sandi']][$t]??$T[$t];
+echo $H;?>
+<div class="lay">
+<aside class="sb s2"><div class="brand font-extrabold text-2xl mb-2 truncate"><?=e(strtolower($ME['username']))?><span class="mk">.</span> <span class="font-h text-sm mk">cms</span></div>
+<?php foreach($grp as $g=>$ks):?><p class="grp"><?=$g?></p><?php foreach($ks as $k):?><a class="nv2 <?=$k==$t?'on':''?>" href="?t=<?=$k?>"><span><?=$ic[$k]?></span><?=e($NM[$k]??$T[$k][0])?><?php if(!in_array($k,['dashboard','settings','theme','akun'])):?><span class="cn"><?=qv("SELECT COUNT(*) FROM $k WHERE user_id=$U")?></span><?php endif?></a><?php endforeach;endforeach?>
+<div class="md:mt-auto flex md:flex-col gap-1"><?php if(($_SESSION['role']??'')==='admin'):?><a class="nv2" href="../<?=CONSOLE?>/"><span>⚑</span>Konsol host</a><?php endif?><a class="nv2" target="_blank" href="../index.php?preview=1<?=sq()?'&amp;'.sq():''?>"><span>◉</span>Preview situs</a><button id="th" class="nv2 text-left"><span>◐</span>Ganti tema</button><a class="nv2" href="?out=1"><span>⏻</span>Keluar</a></div></aside>
+<main class="s1 flex-1 min-w-0 relative"><div class="gb absolute inset-x-0 top-0 h-72 pointer-events-none opacity-40"></div>
+<div class="relative max-w-6xl mx-auto p-5 md:p-9">
+<?php if($IMP):?><div class="okb !bg-lav">Anda sedang masuk sebagai <b><?=e($ME['username'])?></b>. <a class="underline" href="?stop=1">Kembali ke konsol</a></div><?php endif?>
+<?php if(qv("SELECT v FROM settings WHERE user_id=$U AND k='maintenance'")==='on'):?><div class="okb !bg-cor !text-white">Mode pemeliharaan sedang HIDUP. Pengunjung melihat halaman maintenance. <a class="underline" href="?t=settings">Matikan</a></div><?php endif?>
+<div class="flex flex-wrap items-end gap-4 mb-7"><div class="flex-1 min-w-[14rem]"><p class="font-h text-lg mk">Halo, <?=e($ME['username'])?></p><h1 class="font-extrabold text-4xl"><?=e($tt[0])?></h1><p class="mu"><?=e($tt[1])?></p></div>
+<?php if($t=='dashboard'):?><div class="flex flex-wrap gap-2"><?php foreach([7,14,30] as $d):?><a class="chip <?=(($_GET['r']??14)==$d)?'on':''?>" href="?t=dashboard&r=<?=$d?>"><?=$d?> hari</a><?php endforeach?><button class="chip" data-open="#ex">⬇ Ekspor &amp; simpan</button><button class="chip" data-open="#rs" style="border-color:#FF4D5E;color:#FF4D5E">Reset</button></div>
+<?php elseif(!in_array($t,['settings','theme','akun'])&&!isset($_GET['id'])):?><a class="btn mag" data-edit href="?t=<?=$t?>&id=0">+ Tambah <?=e($tt[0])?></a><?php endif?></div>
+
+<?php if($t=='dashboard'):
+$n=in_array($_GET['r']??'',['7','14','30'])?(int)$_GET['r']:14;$ds=[];for($i=$n-1;$i>=0;$i--)$ds[]=date('Y-m-d',strtotime("-$i day"));
+$S0="user_id=$U AND created>=CURDATE()-INTERVAL ".($n-1)." DAY";$P0="user_id=$U AND created>=CURDATE()-INTERVAL ".(2*$n-1)." DAY AND created<CURDATE()-INTERVAL ".($n-1)." DAY";
+$cur=[];foreach(qa("SELECT type,DATE(created) d,COUNT(*) c FROM events WHERE $S0 GROUP BY type,d") as $r)$cur[$r['type']][$r['d']]=(int)$r['c'];
+$prv=array_column(qa("SELECT type,COUNT(*) c FROM events WHERE $P0 GROUP BY type"),'c','type');
+$uq=array_column(qa("SELECT DATE(created) d,COUNT(DISTINCT vid) c FROM events WHERE type='pageview' AND $S0 GROUP BY d"),'c','d');
+$uc=(int)qv("SELECT COUNT(DISTINCT vid) FROM events WHERE type='pageview' AND $S0");$up=(int)qv("SELECT COUNT(DISTINCT vid) FROM events WHERE type='pageview' AND $P0");
+$ser=fn($ty)=>array_map(fn($d)=>$cur[$ty][$d]??0,$ds);$su=array_map(fn($d)=>(int)($uq[$d]??0),$ds);
+$K=[['Kunjungan situs','pageview','Berapa kali situs dibuka','◉','#D6FF3D'],['Pengunjung unik',null,'Jumlah orang berbeda yang datang','☺','#B7A4FF'],['Karya dilihat','project_view','Halaman detail karya yang dibuka','◈','#FFB8D9'],['Like','like','Karya yang disukai pengunjung','♥','#FF4D5E'],['Unduh CV','cv_download','Berapa kali CV Anda diunduh','↓','#D6FF3D'],['Dibagikan','share','Karya yang dibagikan ke media sosial','↗','#B7A4FF'],['Klik kontak','contact','Klik ke Instagram, WhatsApp, email, dll.','✉','#FFB8D9'],['Foto diperbesar','gallery','Galeri foto yang dibuka lebih besar','▣','#FF4D5E']];?>
+<p class="mu text-sm mb-3">Angka dihitung untuk <?=$n?> hari terakhir. Label ▲ ▼ membandingkan dengan <?=$n?> hari sebelumnya.</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+<?php foreach($K as [$lb,$ty,$hn,$ico,$col]):$sx=$ty?$ser($ty):$su;$c=$ty?array_sum($sx):$uc;$pv=$ty?(int)($prv[$ty]??0):$up;
+ if($pv>0){$pc=round(($c-$pv)/$pv*100);$dl=$pc>=0?['up','▲ '.$pc.'%']:['dn','▼ '.abs($pc).'%'];}elseif($c>0)$dl=['up','baru'];else $dl=['z','—'];?>
+<div class="kpi"><div class="ico" style="background:<?=$col?>"><?=$ico?></div><div><p class="kl"><?=$lb?></p><p class="kv" data-n="<?=$c?>"><?=$c?></p></div><?=spark($sx)?><p class="kd"><span class="dl <?=$dl[0]?>"><?=$dl[1]?></span><?=$hn?></p></div>
+<?php endforeach?></div>
+
+<div class="grid lg:grid-cols-3 gap-4 mt-4">
+<div class="panel lg:col-span-2"><div class="flex justify-between items-start gap-2"><h3>Tren kunjungan</h3><button class="ab" data-png="#c1" data-name="tren-kunjungan">Unduh PNG</button></div><p class="sub">Garis tebal = jumlah kunjungan per hari. Garis putus-putus = orang berbeda (unik). Arahkan kursor untuk detail.</p><div id="c1"><?=lineChart($ds,$ser('pageview'),$su)?></div>
+<p class="text-xs mu mt-2"><span style="color:var(--c1)">━</span> Kunjungan &nbsp; <span style="color:var(--c2)">╍</span> Pengunjung unik</p></div>
+<div class="panel"><div class="flex justify-between items-start gap-2"><h3>Perangkat</h3><button class="ab" data-png="#c2" data-name="perangkat">Unduh PNG</button></div><p class="sub">Pengunjung membuka situs dari apa?</p>
+<?php $dv=array_column(qa("SELECT device,COUNT(*) c FROM events WHERE type='pageview' AND $S0 GROUP BY device ORDER BY c DESC"),'c','device');$dc=['var(--c1)','var(--c2)','#FF6A2B'];
+if($dv):?><div class="flex flex-wrap items-center gap-4"><span id="c2"><?=donut($dv,$dc)?></span><ul class="text-sm space-y-1.5"><?php $i=0;foreach($dv as $k=>$v):?><li><span style="color:<?=$dc[$i++%3]?>">●</span> <?=ucfirst($k)?> <b><?=$v?></b></li><?php endforeach?></ul></div><?php else:?><p class="mu text-sm">Belum ada data.</p><?php endif?></div></div>
+
+<div class="grid lg:grid-cols-3 gap-4 mt-4">
+<div class="panel lg:col-span-2"><h3>Karya terpopuler</h3><p class="sub">Diurutkan dari jumlah views sepanjang waktu.</p>
+<?php $tp=qa("SELECT title,views,likes,(SELECT COUNT(*) FROM events e WHERE e.pid=projects.id AND e.type='share') sh FROM projects WHERE user_id=$U ORDER BY views DESC LIMIT 6");$mxv=max(1,(int)($tp[0]['views']??1));foreach($tp as $r)echo hb($r['title'],(int)$r['views'],$mxv,'').'<p class="mu text-xs -mt-1 mb-1 pl-1">'.(int)$r['likes'].' like, '.(int)$r['sh'].' kali dibagikan</p>';if(!$tp)echo '<p class="mu text-sm">Belum ada karya.</p>'?></div>
+<div class="panel"><h3>Sumber kunjungan</h3><p class="sub">Dari mana pengunjung datang?</p>
+<?php $rf=qa("SELECT IF(referrer='','Langsung / tidak diketahui',referrer) r,COUNT(*) c FROM events WHERE type='pageview' AND $S0 GROUP BY r ORDER BY c DESC LIMIT 6");$mr=max(1,(int)($rf[0]['c']??1));foreach($rf as $r)echo hb($r['r'],(int)$r['c'],$mr);if(!$rf)echo '<p class="mu text-sm">Belum ada data.</p>'?></div></div>
+
+<div class="grid lg:grid-cols-3 gap-4 mt-4">
+<div class="panel lg:col-span-2"><h3>Jam tersibuk</h3><p class="sub">Semakin terang kotaknya, semakin banyak yang berkunjung pada hari dan jam itu.</p>
+<?php $hm=array_fill(0,7,array_fill(0,24,0));foreach(qa("SELECT DAYOFWEEK(created) d,HOUR(created) h,COUNT(*) c FROM events WHERE type='pageview' AND $S0 GROUP BY d,h") as $r)$hm[($r['d']+5)%7][(int)$r['h']]=(int)$r['c'];$hx=max(1,max(array_map('max',$hm)));?>
+<div class="overflow-x-auto"><div class="hm min-w-[34rem] mb-1"><span></span><?php for($h=0;$h<24;$h++):?><span><?=$h%6==0?$h:''?></span><?php endfor?></div>
+<div class="hm min-w-[34rem]"><?php foreach(['Sen','Sel','Rab','Kam','Jum','Sab','Min'] as $di=>$dn):?><span><?=$dn?></span><?php for($h=0;$h<24;$h++):$c=$hm[$di][$h];?><i style="opacity:<?=$c?round(.2+.8*$c/$hx,2):.06?>" title="<?=$dn?> <?=sprintf('%02d',$h)?>:00, <?=$c?> kunjungan"></i><?php endfor;endforeach?></div></div></div>
+<div class="panel"><h3>Sampai di mana mereka scroll?</h3><p class="sub">Jumlah pengunjung yang mencapai tiap bagian situs.</p>
+<?php $fo=['home'=>'Beranda','klien'=>'Klien','layanan'=>'Layanan','karya'=>'Karya','tentang'=>'Tentang','prestasi'=>'Prestasi','kontak'=>'Kontak'];$fc=array_column(qa("SELECT ref,COUNT(DISTINCT vid) c FROM events WHERE type='section' AND $S0 GROUP BY ref"),'c','ref');$f0=max(1,(int)max($fc?:[1]));foreach($fo as $k=>$l)echo hb($l,(int)($fc[$k]??0),$f0)?></div></div>
+
+<?php $nf=qa("SELECT ref,COUNT(*) c FROM events WHERE type='404' AND $S0 GROUP BY ref ORDER BY c DESC LIMIT 5");if($nf):$mn=(int)$nf[0]['c'];?><div class="panel mt-4"><h3>Tautan rusak (404)</h3><p class="sub">Alamat yang dicari pengunjung tetapi tidak ada. Perbaiki tautannya atau buat halamannya.</p><?php foreach($nf as $r)echo hb($r['ref'],(int)$r['c'],$mn)?></div><?php endif?>
+<div class="panel mt-4"><h3>Aktivitas terbaru</h3><p class="sub">15 kejadian terakhir di situs Anda.</p>
+<?php $lb=['pageview'=>['Membuka situs','◉'],'section'=>['Melihat bagian','↓'],'project_view'=>['Membuka karya','◈'],'like'=>['Menyukai karya','♥'],'unlike'=>['Batal menyukai','♡'],'filter'=>['Memfilter karya','☰'],'role'=>['Klik layanan','✦'],'cv_download'=>['Mengunduh CV','↓'],'share'=>['Membagikan karya','↗'],'gallery'=>['Memperbesar foto','▣'],'contact'=>['Klik kontak','✉'],'404'=>['Halaman tidak ditemukan','⚠'],'video'=>['Memutar video','▶']];
+foreach(qa("SELECT e.type,e.ref,e.device,e.created,p.title FROM events e LEFT JOIN projects p ON p.id=e.pid WHERE e.user_id=$U ORDER BY e.id DESC LIMIT 15") as $r):$l=$lb[$r['type']]??[$r['type'],'•'];?>
+<div class="flex gap-3 py-2 ln items-center"><span class="ico2"><?=$l[1]?></span><p class="flex-1 min-w-0 text-sm truncate"><b><?=$l[0]?></b> <span class="mu"><?=e($r['title']?:$r['ref'])?></span></p><span class="mu text-xs shrink-0"><?=e($r['device'])?> / <?=ago($r['created'])?></span></div>
+<?php endforeach?></div>
+
+<?php elseif($t=='theme'):$pal=json_decode((string)($ME['palette']??''),true)?:[];$mini=['arcade'=>['#0B0B0F','#D6FF3D','#B7A4FF','Bricolage Grotesque'],'mindaro'=>['#FFF27A','#4A47D1','#B9B6FF','Outfit']];?>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque&family=Outfit&family=Plus+Jakarta+Sans&family=Poppins&family=Space+Grotesk&family=DM+Sans&family=Permanent+Marker&family=Caveat+Brush&family=Gochi+Hand&family=Patrick+Hand&display=swap">
+<form method="post" class="space-y-5"><input type="hidden" name="t" value="<?=tk()?>"><input type="hidden" name="act" value="theme">
+<div class="grid md:grid-cols-2 gap-4"><?php foreach(THEMES as $k=>$X):$m=$mini[$k]??$mini['arcade'];?>
+<label class="block cursor-pointer"><input type="radio" name="theme" value="<?=$k?>" class="peer sr-only" <?=$ME['theme']===$k?'checked':''?>>
+<div class="panel peer-checked:ring-4 peer-checked:ring-[color:var(--c1)] peer-focus-visible:ring-2 transition"><div class="rounded-xl overflow-hidden mb-3 relative" style="background:<?=$m[0]?>;height:7.5rem"><b style="display:block;padding:.8rem;font-size:1.7rem;color:<?=$m[1]?>;font-family:'<?=$m[3]?>'">Halo, saya!</b><i style="position:absolute;right:.8rem;bottom:.8rem;width:3rem;height:3rem;border-radius:50%;background:<?=$m[2]?>"></i><span style="position:absolute;left:.8rem;bottom:.8rem;padding:.25rem .9rem;border-radius:9999px;background:<?=$m[1]?>;color:<?=$m[0]?>;font-size:.75rem;font-weight:700">Lihat karya</span></div>
+<h3><?=e($X[0])?></h3><p class="mu text-sm mt-1"><?=e($X[1])?></p><a class="ab inline-block mt-3" target="_blank" href="../index.php?preview=1&amp;u=<?=urlencode($ME['username'])?>&amp;theme=<?=$k?>">Pratinjau situs saya</a></div></label><?php endforeach?></div>
+<div class="panel"><h3>Kustomisasi warna dan font</h3><p class="sub">Berlaku untuk tema yang dipilih. Biarkan sama dengan bawaan jika tidak ingin mengubah.</p>
+<?php foreach(THEMES as $k=>$X):?><div class="grid sm:grid-cols-3 gap-4 mb-2" data-colors="<?=$k?>" <?=$ME['theme']===$k?'':'hidden'?>><?php foreach($X[2] as $ck=>$cd):$v=$pal['c'][$ck]??$cd[1];?><div><label class="lbl" for="c_<?=$ck?>"><?=e($cd[0])?></label><div class="flex gap-2"><input type="color" value="<?=e($v)?>" data-pick="c_<?=$ck?>" class="w-12 h-11 rounded-lg border-0 p-0 bg-transparent cursor-pointer" aria-label="Pilih <?=e($cd[0])?>"><input id="c_<?=$ck?>" name="c[<?=$ck?>]" class="inp" value="<?=e($v)?>" maxlength="7" data-hex></div></div><?php endforeach?></div><?php endforeach?>
+<div class="grid sm:grid-cols-2 gap-4 mt-4"><div><label class="lbl" for="fd">Font judul dan isi</label><select id="fd" name="fd" class="inp"><option value="">Bawaan tema</option><?php foreach(FONTS_D as $f):?><option <?=($pal['fd']??'')===$f?'selected':''?>><?=e($f)?></option><?php endforeach?></select></div>
+<div><label class="lbl" for="fh">Font coretan tangan</label><select id="fh" name="fh" class="inp"><option value="">Bawaan tema</option><?php foreach(FONTS_H as $f):?><option <?=($pal['fh']??'')===$f?'selected':''?>><?=e($f)?></option><?php endforeach?></select></div></div>
+<div id="pvb" class="rounded-2xl mt-5 p-5" style="min-height:8rem"><b id="pvt" class="text-3xl block">Halo, saya <?=e($ME['username'])?></b><span id="pvh" class="text-xl block">coretan tangan ✦</span><span id="pvc" class="inline-block mt-3 px-4 py-1.5 rounded-full font-bold text-sm">Lihat karya</span></div>
+<div class="flex flex-wrap gap-3 mt-5"><button class="btn">Simpan tema <i>✓</i></button><button name="reset" value="1" class="btn2" onclick="return confirm('Kembalikan warna dan font ke bawaan tema?')">Reset ke bawaan</button></div></div></form>
+<?php elseif($t=='akun'):$root=preg_replace('#app/?$#','',base());$site=$root.(isHost()?'':(PRETTY?'u/'.$ME['username']:'index.php?u='.$ME['username']));?>
+<div class="grid lg:grid-cols-2 gap-4"><div class="panel"><h3>Alamat situs Anda</h3><p class="sub">Bagikan tautan ini ke siapa saja.</p><div class="flex gap-2"><input id="surl" class="inp" readonly value="<?=e($site)?>"><button type="button" class="ab" onclick="navigator.clipboard.writeText($('#surl').value);this.textContent='Tersalin'">Salin</button></div>
+<p class="mt-3 text-sm mu">Status akun: <b><?=e($ME['status'])?></b>. Tema aktif: <b><?=e(THEMES[$ME['theme']][0]??$ME['theme'])?></b>.</p><a class="btn mt-4" target="_blank" href="<?=e($site)?>">Buka situs <i>↗</i></a></div>
+<form method="post" class="panel space-y-4"><input type="hidden" name="t" value="<?=tk()?>"><input type="hidden" name="act" value="acct"><h3>Akun dan keamanan</h3>
+<div><label class="lbl" for="em">Email</label><input id="em" name="email" type="email" class="inp" value="<?=e($ME['email'])?>"></div>
+<div><label class="lbl" for="cp">Kata sandi saat ini</label><input id="cp" name="cp" type="password" class="inp" autocomplete="current-password"></div>
+<div><label class="lbl" for="np">Kata sandi baru</label><input id="np" name="np" type="password" class="inp" minlength="8" autocomplete="new-password"><p class="hint">Kosongkan jika tidak ingin mengganti.</p></div><button class="btn">Simpan <i>✓</i></button></form></div>
+<?php elseif($t=='settings'||isset($_GET['id'])):?><div class="panel !p-0 overflow-hidden"><?=frm($t,(int)($_GET['id']??0))?></div>
+<?php else:
+$LI=['projects'=>['title','category','cover'],'services'=>['title','description'],'clients'=>['name','project','logo'],'achievements'=>['title','org'],'skills'=>['name','category'],'history'=>['title','org']];
+[$tf,$sf]=$LI[$t];$im=$LI[$t][2]??null;$rows=qa("SELECT * FROM $t WHERE user_id=$U ORDER BY sort_order,id");?>
+<div class="flex gap-3 mb-5 flex-wrap items-center"><input id="q" class="inp max-w-xs" placeholder="Cari di <?=e(strtolower($tt[0]))?>..."><span class="mu text-sm"><?=count($rows)?> data. Klik foto untuk memperbesar.</span></div>
+<?php if(!$rows):?><div class="panel text-center py-12"><p class="font-extrabold text-xl">Belum ada data</p><p class="mu mb-4">Mulai dengan menambahkan data pertama Anda.</p><a class="btn" data-edit href="?t=<?=$t?>&id=0">+ Tambah <?=e($tt[0])?></a></div><?php endif?>
+<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4"><?php foreach($rows as $r):?>
+<article class="item" data-q="<?=e(strtolower($r[$tf].' '.($r[$sf]??'')))?>"><div class="thumb"><?php if($im&&$r[$im]):?><?=mt($r[$im],'','',['b'=>'../','z'=>1,'still'=>1])?><?php if(isvid($r[$im])):?><i class="vbd">▶</i><?php endif?><?php else:?><?=e(ini1($r[$tf]))?><?php endif?></div>
+<div class="min-w-0 flex-1"><h3 class="font-extrabold truncate"><?=e($r[$tf])?></h3><p class="mu text-sm truncate"><?=e($r[$sf]??'')?></p>
+<div class="flex flex-wrap gap-1.5 mt-1.5"><?php if($t=='projects'):?><span class="badge <?=$r['status']=='published'?'ok':''?>"><?=$r['status']=='published'?'Terbit':'Draft'?></span><span class="badge"><?=(int)$r['views']?> views</span><span class="badge"><?=(int)$r['likes']?> like</span><?php elseif($t=='history'):?><span class="badge ok"><?=e($r['type'])?></span><?php else:?><span class="badge">urutan <?=(int)$r['sort_order']?></span><?php endif?></div></div>
+<div class="flex flex-col gap-1.5"><a class="ab" data-edit href="?t=<?=$t?>&id=<?=$r['id']?>">Ubah</a><?php if($t=='projects'):?><a class="ab" target="_blank" href="../<?=e(purl($r))?>">Lihat</a><?php endif?><button class="ab rd" data-del="<?=$r['id']?>" data-name="<?=e($r[$tf])?>">Hapus</button></div></article>
+<?php endforeach?></div><?php endif?>
+</div></main></div>
+
+<dialog id="md" class="sheet s1"><div class="mc"></div></dialog>
+<dialog id="cf" class="mini s1"><form method="post" action="?t=<?=e($t)?>"><input type="hidden" name="t" value="<?=tk()?>"><input type="hidden" name="del" id="cdel"><h3 class="font-extrabold text-xl">Hapus data ini?</h3><p class="mu mt-2">"<b id="cnm"></b>" akan dihapus permanen dan tidak bisa dikembalikan.</p><div class="flex justify-end gap-2 mt-5"><button type="button" data-close class="btn2">Batal</button><button class="btn !bg-cor !text-white">Ya, hapus</button></div></form></dialog>
+<dialog id="zm" class="zoom"><img id="zi" alt="Pratinjau"><video id="zv" controls playsinline hidden></video></dialog>
+<?php if($t=='dashboard'):$tot=(int)qv("SELECT COUNT(*) FROM events WHERE user_id=$U");?>
+<dialog id="ex" class="mini s1" style="max-width:34rem"><div class="flex justify-between items-start"><div><p class="eyebrow">Data grafik</p><h3 class="font-extrabold text-2xl">Ekspor dan simpan</h3></div><button type="button" data-close class="ib2" aria-label="Tutup">✕</button></div>
+<form method="get" class="mt-4 space-y-4"><input type="hidden" name="t" value="dashboard">
+<div><label class="lbl">Data yang diunduh</label><div class="seg"><?php foreach($DS as $k=>$l):?><label><input type="radio" name="x" value="<?=$k?>" <?=$k=='daily'?'checked':''?>><span><?=e($l)?></span></label><?php endforeach?></div></div>
+<div class="grid grid-cols-2 gap-4"><div><label class="lbl">Format</label><div class="seg"><label><input type="radio" name="fmt" value="csv" checked><span>CSV (Excel)</span></label><label><input type="radio" name="fmt" value="json"><span>JSON</span></label></div></div>
+<div><label class="lbl">Rentang</label><select name="r" class="inp"><?php foreach(['7'=>'7 hari','14'=>'14 hari','30'=>'30 hari','90'=>'90 hari','all'=>'Semua data'] as $k=>$l):?><option value="<?=$k?>" <?=$k==$n?'selected':''?>><?=$l?></option><?php endforeach?></select></div></div>
+<button class="btn">Unduh sekarang <i>↓</i></button></form>
+<hr class="my-5" style="border-color:var(--bd)">
+<form method="post"><input type="hidden" name="t" value="<?=tk()?>"><input type="hidden" name="act" value="snapshot"><input type="hidden" name="r" value="<?=$n?>"><p class="font-bold">Simpan snapshot di server</p><p class="mu text-sm mb-3">Menyimpan ringkasan semua grafik (<?=$n?> hari terakhir) sebagai file JSON di folder backups, supaya tetap ada walau data direset.</p><button class="btn2">Simpan snapshot</button></form>
+<?php $bk=glob(__DIR__."/../backups/u$U/snapshot-*.json")?:[];rsort($bk);if($bk):?><p class="lbl mt-5">Snapshot tersimpan</p><div class="max-h-40 overflow-auto"><?php foreach($bk as $f):$b=basename($f);?><div class="flex items-center gap-2 py-1.5 ln text-sm"><span class="flex-1 truncate" title="<?=e($b)?>"><?=e(date('d M Y H:i',filemtime($f)))?> <span class="mu">(<?=round(filesize($f)/1024)?> KB)</span></span><a class="ab" href="?t=dashboard&x=bak&f=<?=e($b)?>">Unduh</a><form method="post"><input type="hidden" name="t" value="<?=tk()?>"><input type="hidden" name="act" value="bakdel"><input type="hidden" name="f" value="<?=e($b)?>"><button class="ab rd">Hapus</button></form></div><?php endforeach?></div><?php endif?></dialog>
+<dialog id="rs" class="mini s1" style="max-width:32rem"><div class="flex justify-between items-start"><div><p class="eyebrow" style="color:#FF4D5E">Zona berbahaya</p><h3 class="font-extrabold text-2xl">Reset data grafik</h3></div><button type="button" data-close class="ib2" aria-label="Tutup">✕</button></div>
+<p class="mu text-sm mt-2">Data yang dihapus tidak bisa dikembalikan. Saat ini tersimpan <b><?=number_format($tot)?></b> aktivitas.</p>
+<form method="post" class="mt-4 space-y-3"><input type="hidden" name="t" value="<?=tk()?>"><input type="hidden" name="act" value="reset"><input type="hidden" name="r" value="<?=$n?>">
+<label class="flex gap-3 items-start"><input type="checkbox" name="ev" value="1" checked class="mt-1"><span><b>Riwayat aktivitas</b><br><span class="mu text-sm">Mengosongkan grafik tren, perangkat, sumber, jam tersibuk, scroll, dan log aktivitas.</span></span></label>
+<select name="older" class="inp"><option value="0">Hapus semua data</option><option value="30">Hanya yang lebih lama dari 30 hari</option><option value="90">Hanya yang lebih lama dari 90 hari</option><option value="180">Hanya yang lebih lama dari 180 hari</option></select>
+<label class="flex gap-3 items-start"><input type="checkbox" name="vw" value="1" class="mt-1"><span><b>Angka views karya</b><br><span class="mu text-sm">Dijadikan 0 (memengaruhi grafik Karya terpopuler).</span></span></label>
+<label class="flex gap-3 items-start"><input type="checkbox" name="lk" value="1" class="mt-1"><span><b>Angka like karya</b><br><span class="mu text-sm">Semua like dihapus dan dijadikan 0.</span></span></label>
+<label class="flex gap-3 items-start"><input type="checkbox" name="bak" value="1" checked class="mt-1"><span><b>Simpan cadangan otomatis dulu</b><br><span class="mu text-sm">File JSON lengkap disimpan di folder backups sebelum data dihapus.</span></span></label>
+<div><label class="lbl" for="rc">Ketik <b>RESET</b> untuk konfirmasi</label><input id="rc" name="confirm" class="inp" autocomplete="off"></div>
+<div class="flex justify-end gap-2"><button type="button" data-close class="btn2">Batal</button><button id="rb" disabled class="btn !bg-cor !text-white disabled:opacity-40">Reset data</button></div></form></dialog>
+<?php endif?>
+
+<?php if(!empty($_SESSION['f'])):?><div id="toast" role="status"><?=e($_SESSION['f'])?></div><?php unset($_SESSION['f']);endif?>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+$('#th').onclick=()=>{localStorage[TK]=document.documentElement.classList.toggle('dark')?'d':'l'};
+const md=$('#md'),cf=$('#cf'),zm=$('#zm');zm.addEventListener('close',()=>$('#zv').pause());
+async function openForm(u){const r=await fetch(u+(u.includes('?')?'&':'?')+'m=1');md.querySelector('.mc').innerHTML=await r.text();md.style.width=md.querySelector('.has-live')?'min(100vw,64rem)':'min(100vw,38rem)';md.showModal();init(md)}
+document.addEventListener('click',e=>{const T=e.target;
+ const z=T.closest('img[data-zoom],video[data-zoom]');if(z){e.preventDefault();e.stopPropagation();const v=z.tagName=='VIDEO';$('#zi').hidden=v;$('#zv').hidden=!v;if(v){$('#zv').src=z.currentSrc||z.src;$('#zv').play().catch(()=>{})}else $('#zi').src=z.src;zm.showModal();return}
+ if(T.closest('#zm')){if(T.id=='zv')return;zm.close();return}
+ const o=T.closest('[data-open]');if(o){$(o.dataset.open).showModal();return}
+ const g=T.closest('[data-png]');if(g){png(g.dataset.png,g.dataset.name);return}
+ const a=T.closest('[data-edit]');if(a){e.preventDefault();openForm(a.href);return}
+ const x=T.closest('[data-close]');if(x){x.closest('dialog').close();return}
+ const d=T.closest('[data-del]');if(d){$('#cnm').textContent=d.dataset.name;$('#cdel').value=d.dataset.del;cf.showModal();return}
+ if(T.tagName=='DIALOG')T.close()},true);
+function live(r){const l=r.querySelector('.live');if(!l)return;const g=n=>r.querySelector(`[name=${n}]`),c=r.querySelector('[name=category]:checked');
+ l.querySelector('[data-lt]').textContent=g('title').value||'Judul karya';l.querySelector('[data-lc]').textContent=c?c.value:'';l.querySelector('[data-ls]').textContent=g('summary').value||'Ringkasan singkat karya'}
+const mel=f=>{const u=URL.createObjectURL(f),el=f.type.startsWith('video/')?Object.assign(document.createElement('video'),{src:u+'#t=0.1',muted:true,loop:true,playsInline:true,preload:'metadata'}):Object.assign(new Image(),{src:u});el.dataset.zoom='';return el};
+function init(r){
+ r.addEventListener('input',()=>live(r));r.addEventListener('change',()=>live(r));live(r);
+ r.querySelectorAll('[data-c]').forEach(i=>{const s=document.createElement('span');s.className='cnt';i.after(s);const u=()=>s.textContent=i.value.length+'/'+i.maxLength;i.addEventListener('input',u);u()});
+ r.querySelectorAll('[data-drop]').forEach(dz=>{const inp=dz.querySelector('input'),multi=dz.dataset.multi!==undefined,fn=dz.querySelector('[data-fn]');let dt=new DataTransfer();
+  const single=f=>{const b=dz.querySelector('.dz');if(/^(image|video)\//.test(f.type)){b.innerHTML='';b.append(mel(f));const l=r.querySelector('.lc-i');if(l&&inp.name=='cover'){l.innerHTML='';l.append(mel(f))}}else b.innerHTML='<div class=pdf>PDF<small>'+esc(f.name)+'</small></div>';fn.textContent=f.name+' ('+Math.round(f.size/1024)+' KB). Pratinjau di atas.'};
+  const render=()=>{const g=dz.parentNode.querySelector('.gal');g.querySelectorAll('.new').forEach(n=>n.remove());[...dt.files].forEach((f,i)=>{const d=document.createElement('div');d.className='th new';const im=mel(f);const b=document.createElement('button');b.type='button';b.textContent='Batal';b.onclick=()=>{const n=new DataTransfer();[...dt.files].forEach((x,k)=>k!=i&&n.items.add(x));dt=n;render()};d.append(im,b);g.append(d)});inp.files=dt.files;fn.textContent=dt.files.length?dt.files.length+' foto baru siap diunggah.':'Klik foto untuk memperbesar. Tombol Hapus menandai foto yang akan dihapus.'};
+  inp.addEventListener('change',()=>{const fs=[...inp.files];if(multi){fs.forEach(f=>dt.items.add(f));render()}else if(fs[0])single(fs[0])});
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');const fs=[...e.dataTransfer.files];if(multi){fs.filter(f=>/^(image|video)\//.test(f.type)).forEach(f=>dt.items.add(f));render()}else if(fs[0]){const t=new DataTransfer();t.items.add(fs[0]);inp.files=t.files;single(fs[0])}})})}
+init(document);
+const q=$('#q');if(q)q.oninput=e=>{const v=e.target.value.toLowerCase();$$('.item').forEach(i=>i.hidden=!i.dataset.q.includes(v))};
+$$('[data-n]').forEach(x=>{const n=+x.dataset.n;if(n<2)return;let s=null;const f=t=>{s??=t;const k=Math.min((t-s)/1200,1);x.textContent=Math.round(n*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(f)};requestAnimationFrame(f)});
+function png(sel,name){const s=document.querySelector(sel+' svg');if(!s)return;const c=s.cloneNode(true),A=[s,...s.querySelectorAll('*')],Bb=[c,...c.querySelectorAll('*')];
+ A.forEach((el,i)=>{const cs=getComputedStyle(el);['fill','stroke','stroke-width','opacity','stroke-dasharray','font-size','font-weight','font-family','text-anchor'].forEach(p=>Bb[i].style.setProperty(p,cs.getPropertyValue(p)))});
+ const vb=s.viewBox.baseVal,W=vb.width*2,H=vb.height*2;c.setAttribute('width',W);c.setAttribute('height',H);c.setAttribute('xmlns','http://www.w3.org/2000/svg');
+ const im=new Image();im.onload=()=>{const cv=document.createElement('canvas');cv.width=W;cv.height=H;const x=cv.getContext('2d');x.fillStyle=getComputedStyle(document.body).backgroundColor;x.fillRect(0,0,W,H);x.drawImage(im,0,0);cv.toBlob(b=>{const l=document.createElement('a');l.href=URL.createObjectURL(b);l.download=name+'.png';l.click()})};
+ im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(c))}
+const rc=$('#rc');if(rc)rc.oninput=()=>{$('#rb').disabled=rc.value!=='RESET'};
+(function(){const f=$('#pvb');if(!f)return;const MP={arcade:['ink','lime','lav','Bricolage Grotesque','Permanent Marker'],mindaro:['y','b','a','Outfit','Caveat Brush']};
+const g=k=>{const i=$('#c_'+k);return i?i.value:'#888'};
+const up=()=>{const th=($('input[name=theme]:checked')||{}).value||'arcade',m=MP[th];$$('[data-colors]').forEach(d=>d.hidden=d.dataset.colors!=th);
+ const fd=$('#fd').value||m[3],fh=$('#fh').value||m[4];f.style.background=g(m[0]);f.style.fontFamily="'"+fd+"'";$('#pvt').style.color=g(m[1]);$('#pvh').style.cssText='color:'+g(m[2])+";font-family:'"+fh+"'";const c=$('#pvc');c.style.background=g(m[1]);c.style.color=g(m[0])};
+$$('[data-pick]').forEach(p=>p.oninput=()=>{$('#'+p.dataset.pick).value=p.value;up()});
+$$('[data-hex]').forEach(h=>h.oninput=()=>{if(/^#[0-9a-f]{6}$/i.test(h.value)){h.previousElementSibling.value=h.value;up()}});
+$$('input[name=theme],#fd,#fh').forEach(e=>e.onchange=up);up()})();
+setTimeout(()=>$('#toast')?.remove(),3400);
+</script>

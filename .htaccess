@@ -1,5 +1,7 @@
 <IfModule mod_rewrite.c>
 RewriteEngine On
+RewriteRule ^u/([a-z0-9_-]+)/karya/([a-z0-9-]+)/?$ project.php?u=$1&slug=$2 [L,QSA]
+RewriteRule ^u/([a-z0-9_-]+)/?$ index.php?u=$1 [L,QSA]
 RewriteRule ^karya/([a-z0-9-]+)/?$ project.php?slug=$1 [L,QSA]
 </IfModule>
 Options -Indexes
